@@ -179,3 +179,34 @@ div[class^="announcementBar_"] {
   font-weight: 500;
   animation: gradient 4s linear infinite;
 }
+
+/* Mobile menu hiding */
+.navbar__toggle {
+  display: none !important;
+}
+
+.navbar-sidebar {
+  display: none !important;
+}
+
+.navbar-sidebar__backdrop {
+  display: none !important;
+}
+
+/* Button container responsive styling */
+@media screen and (max-width: 768px) {
+  .buttons {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+  
+  .buttons .button {
+    width: 100%;
+    margin-bottom: 0;
+  }
+  
+  .buttons .button:last-child {
+    margin-bottom: 0;
+  }
+}

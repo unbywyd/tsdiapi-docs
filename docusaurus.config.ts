@@ -146,7 +146,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} TSDIAPI. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} TSDIAPI. Powered by <a href="https://webto.pro" target="_blank" rel="noopener noreferrer">WebTo.Pro</a>`,
     },
     prism: {
       theme: prismThemes.vsDark,

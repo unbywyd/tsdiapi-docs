@@ -6,6 +6,7 @@ import Layout from '@theme/Layout';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
 import Heading from '@theme/Heading';
 import CodeBlock from '@theme/CodeBlock';
+import NpmIcon from '@site/static/img/npm.svg';
 
 import styles from './index.module.css';
 
@@ -42,7 +43,7 @@ function HomepageHeader() {
           {siteConfig.title}
         </Heading>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <div className={styles.buttons}>
+        <div className={styles.buttons + " buttons"}>
           <Link
             className="button button--primary button--lg"
             to="/getting-started/introduction">
@@ -52,6 +53,12 @@ function HomepageHeader() {
             className="button button--secondary button--lg"
             to="https://github.com/unbywyd/tsdiapi-cli">
             View on GitHub
+          </Link>
+          <Link
+            className="button button--secondary button--lg"
+            to="https://www.npmjs.com/package/@tsdiapi/cli">
+            <NpmIcon className={styles.npmIcon} />
+            NPM
           </Link>
         </div>
       </div>
