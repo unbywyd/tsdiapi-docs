@@ -1,0 +1,181 @@
+/**
+ * Custom CSS for TSDIAPI documentation
+ * Modern gradient theme with dark mode focus
+ */
+
+:root {
+  /* Logo gradient colors */
+  --tsdiapi-color-t: #98ff98; /* Lime green */
+  --tsdiapi-color-s: #ffe87c; /* Light yellow */
+  --tsdiapi-color-d: #ffb6c1; /* Light pink */
+  --tsdiapi-color-i: #dda0dd; /* Plum */
+  --tsdiapi-color-a: #a6a1ff; /* Light purple */
+  --tsdiapi-color-p: #87ceeb; /* Sky blue */
+  --tsdiapi-color-i2: #add8e6; /* Light blue */
+
+  /* Primary colors and gradients */
+  --tsdiapi-gradient-text: linear-gradient(
+    90deg,
+    var(--tsdiapi-color-t),
+    var(--tsdiapi-color-s),
+    var(--tsdiapi-color-d),
+    var(--tsdiapi-color-i),
+    var(--tsdiapi-color-a),
+    var(--tsdiapi-color-p),
+    var(--tsdiapi-color-i2)
+  );
+
+  --tsdiapi-gradient-bg: linear-gradient(
+    120deg,
+    var(--tsdiapi-color-t),
+    var(--tsdiapi-color-p)
+  );
+
+  /* Theme colors */
+  --ifm-color-primary: var(--tsdiapi-color-i);
+  --ifm-color-primary-dark: var(--tsdiapi-color-a);
+  --ifm-color-primary-darker: var(--tsdiapi-color-p);
+  --ifm-color-primary-darkest: var(--tsdiapi-color-i2);
+  --ifm-color-primary-light: var(--tsdiapi-color-t);
+  --ifm-color-primary-lighter: var(--tsdiapi-color-s);
+  --ifm-color-primary-lightest: var(--tsdiapi-color-d);
+
+  /* Other customizations */
+  --ifm-code-font-size: 95%;
+  --ifm-font-family-base: "Inter", system-ui, -apple-system, sans-serif;
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.95);
+  --ifm-navbar-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  --docusaurus-highlighted-code-line-bg: rgba(152, 255, 152, 0.1);
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] {
+  --ifm-background-color: #0d1117;
+  --ifm-navbar-background-color: rgba(13, 17, 23, 0.95);
+  --ifm-navbar-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --docusaurus-highlighted-code-line-bg: rgba(152, 255, 152, 0.2);
+  --ifm-hero-background-color: #0d1117;
+}
+
+/* Hero section styling */
+.hero {
+  background: var(--ifm-hero-background-color);
+}
+
+[data-theme="dark"] .hero {
+  background: linear-gradient(
+    160deg,
+    var(--ifm-background-color) 0%,
+    rgba(13, 17, 23, 0.9) 100%
+  );
+}
+.menu__link:hover {
+  color: #fff !important;
+  transition: none !important;
+  background: none !important;
+}
+
+/* Modern styling for navbar */
+.navbar {
+  backdrop-filter: blur(10px);
+}
+
+/* Gradient text for special headings */
+.hero__title,
+.hero__subtitle,
+.navbar__title {
+  background: var(--tsdiapi-gradient-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% auto;
+  animation: gradient 4s linear infinite;
+}
+.navbar__logo {
+  height: auto !important;
+  img {
+    width: 100px !important;
+  }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* Card styling */
+.card {
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+[data-theme="dark"] .card {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(152, 255, 152, 0.2);
+}
+
+/* Button styling */
+.button {
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.button--primary {
+  background: var(--tsdiapi-gradient-text);
+  background-size: 200% auto;
+  border: none;
+  animation: gradient 4s linear infinite;
+}
+
+.button--primary:hover {
+  background: var(--tsdiapi-gradient-text);
+  background-size: 200% auto;
+  background-position: right center;
+  transform: translateY(-1px);
+}
+
+/* Code blocks styling */
+.prism-code {
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+/* Table styling */
+table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Sidebar active item */
+.menu__link--active {
+  background: var(--tsdiapi-gradient-text);
+  &:not(:hover) {
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  background-clip: text;
+  font-weight: 600;
+}
+
+/* Footer styling */
+.footer {
+  background: var(--ifm-background-color);
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Announcement bar */
+div[class^="announcementBar_"] {
+  background: var(--tsdiapi-gradient-text);
+  color: white;
+  font-weight: 500;
+  animation: gradient 4s linear infinite;
+}
