@@ -1,0 +1,12 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[build.environment]
+  NODE_VERSION = "18"  # или версия Node.js, которую ты используешь
+  NPM_FLAGS = "--legacy-peer-deps"  # на случай, если есть проблемы с зависимостями
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
