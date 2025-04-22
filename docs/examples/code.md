@@ -74,25 +74,33 @@ Then in your route handler, you can access all these fields:
 const { userId, role, permissions } = req.session;
 ```
 
-The session data is automatically populated from the JWT token when using session-based authentication. Here's a complete example:
+For type-safe session access, you can use `useSession` from `@tsdiapi/jwt-auth`:
 
 ```typescript
+import { JWTGuard, useSession } from "@tsdiapi/jwt-auth";
+
+// Define your session type
+type UserSession = {
+  userId: string;
+  role: string;
+  permissions: string[];
+};
+
 useRoute("profile")
   .get("/")
   .code(200, ProfileSchema)
   .code(401, ErrorSchema)
   .summary("Get user profile")
-  .auth("session")  // Use session-based authentication
+  .auth("session")
   .handler(async (req) => {
-    // Access session data that was set during signIn
-    const userId = req.session.userId;
-    const userRole = req.session.role;
+    // Get type-safe session
+    const session = useSession<UserSession>(req);
     
-    // Access session metadata
-    const sessionId = req.session.id;
-    const sessionExpires = req.session.expires;
+    // Now you have full type checking and autocompletion
+    const userId = session.userId;
+    const role = session.role;
+    const permissions = session.permissions;
     
-    // Get user profile using session data
     const profile = await userService.getProfile(userId);
     return { status: 200, data: profile };
   })
@@ -100,7 +108,6 @@ useRoute("profile")
 ```
 
 Common session properties:
-- `req.session.id` - Unique session identifier
 - `...other fields from JWT token`
 
 Note: All custom data passed to `authProvider.signIn()` will be available in `req.session` in your route handlers.
