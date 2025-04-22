@@ -112,6 +112,197 @@ Common session properties:
 
 Note: All custom data passed to `authProvider.signIn()` will be available in `req.session` in your route handlers.
 
+## Error Handling
+Every feature MUST have its own error classes defined in a separate `name.errors.ts` file. These classes should extend the base Error class and include a descriptive name:
+
+```typescript
+// Example from contacts.errors.ts
+export class ContactNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Contact with ID ${id} not found`);
+    this.name = "ContactNotFoundError";
+  }
+}
+
+export class MainContactNotFoundError extends Error {
+  constructor(userId: string) {
+    super(`Main contact not found for user ${userId}`);
+    this.name = "MainContactNotFoundError";
+  }
+}
+
+export class DatabaseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DatabaseError";
+  }
+}
+```
+
+## Entity Relationships
+When working with related entities in Prisma, use the following patterns:
+
+```typescript
+// Setting a relationship (one-to-one or one-to-many)
+await prisma.entity.update({
+  where: { id: entityId },
+  data: { 
+    relatedEntity: { 
+      connect: { id: relatedId } 
+    }
+  }
+});
+
+// Removing a relationship
+await prisma.entity.update({
+  where: { id: entityId },
+  data: { 
+    relatedEntity: { 
+      disconnect: true 
+    }
+  }
+});
+
+// Example from contacts.service.ts
+async setMainContact(userId: string, contactId: string) {
+  try {
+    const contact = await this.getContactById(contactId);
+    
+    if (contact.userId !== userId) {
+      throw new ContactNotFoundError(contactId);
+    }
+
+    // First, remove main contact from any other contacts
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        mainContact: {
+          disconnect: true
+        }
+      }
+    });
+
+    // Set the new main contact
+    return await this.prisma.contact.update({
+      where: { id: contactId },
+      data: { mainUserContact: { connect: { id: userId } } }
+    });
+  } catch (error) {
+    if (error instanceof ContactNotFoundError) throw error;
+    throw new DatabaseError("Failed to set main contact");
+  }
+}
+```
+
+## Optional Fields and Complex Queries
+When defining schemas with optional fields or complex query parameters:
+
+```typescript
+// Schema with optional fields
+const ContactSchema = Type.Object({
+  name: Type.Optional(Type.String()),
+  telegram: Type.Optional(Type.String()),
+  phoneNumber: Type.Optional(Type.String()),
+  hasWhatsapp: Type.Optional(Type.Boolean())
+});
+
+// Complex query parameters
+.query(
+  Type.Object({
+    name: Type.Optional(Type.String()),
+    telegram: Type.Optional(Type.String()),
+    phoneNumber: Type.Optional(Type.String()),
+    hasWhatsapp: Type.Optional(Type.Boolean())
+  })
+)
+
+// Service method with complex filtering
+async listContacts(userId: string, filters?: {
+  name?: string;
+  telegram?: string;
+  phoneNumber?: string;
+  hasWhatsapp?: boolean;
+}) {
+  return this.prisma.contact.findMany({
+    where: {
+      userId,
+      ...filters
+    },
+    orderBy: { name: "asc" }
+  });
+}
+```
+
+## Service Layer Best Practices
+1. Always wrap database operations in try-catch blocks
+2. Throw appropriate custom errors
+3. Handle relationships carefully
+4. Use TypeDI for dependency injection
+5. Keep business logic in the service layer
+6. Always validate user ownership before operations
+
+```typescript
+@Service()
+export class EntityService {
+  private prisma = usePrisma<PrismaClient>();
+
+  async createEntity(data: {
+    name?: string;
+    // ... other optional fields
+    requiredField: string;
+    userId: string; // Always include userId for ownership
+  }) {
+    try {
+      return await this.prisma.entity.create({
+        data: {
+          name: data.name,
+          requiredField: data.requiredField,
+          userId: data.userId
+        }
+      });
+    } catch (error) {
+      throw new DatabaseError("Failed to create entity");
+    }
+  }
+
+  // Always check ownership
+  async updateEntity(id: string, userId: string, data: Partial<Entity>) {
+    const entity = await this.getEntityById(id);
+    if (entity.userId !== userId) {
+      throw new EntityNotFoundError(id);
+    }
+    // ... rest of the update logic
+  }
+}
+```
+
+## Route Handler Error Handling
+Always handle specific error types in route handlers and include proper error codes:
+
+```typescript
+.handler(async (req) => {
+  try {
+    const session = useSession<UserSession>(req);
+    const contact = await service.getContactById(req.params.id);
+    
+    // Check ownership
+    if (contact.userId !== session?.id) {
+      return { status: 403, data: { error: "Forbidden" } };
+    }
+    
+    return { status: 200, data: contact };
+  } catch (error) {
+    if (error instanceof ContactNotFoundError) {
+      return { status: 404, data: { error: error.message } };
+    }
+    if (error instanceof DatabaseError) {
+      return { status: 500, data: { error: error.message } };
+    }
+    return { status: 500, data: { error: "Internal server error" } };
+  }
+})
+```
+
 ## Feature Structure
 A feature is any directory in `src/api` that contains at least two required files:
 - `name.service.ts` - Contains business logic
