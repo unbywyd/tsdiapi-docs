@@ -32,6 +32,7 @@ Every route MUST register ALL possible response codes immediately after the HTTP
 - Error codes (400, 401, 403, 404, 500, etc.)
 - Each code MUST have a corresponding schema
 - All possible error scenarios MUST be documented
+- For authenticated routes, 403 response code with `error: string` schema is REQUIRED
 
 ```typescript
 // Correct
@@ -40,10 +41,12 @@ useRoute("articles")
   .code(201, ArticleSchema)  // Success code
   .code(400, ErrorSchema)    // Validation error
   .code(401, ErrorSchema)    // Unauthorized
-  .code(403, ErrorSchema)    // Forbidden
+  .code(403, Type.Object({ error: Type.String() }))    // Forbidden (REQUIRED for auth)
   .code(404, ErrorSchema)    // Not found
   .code(500, ErrorSchema)    // Server error
   .summary("Create article")
+  .auth("bearer")           // Authentication
+  .guard(JWTGuard())        // Guard
   // ... rest of the route definition
 
 // Incorrect
@@ -51,6 +54,7 @@ useRoute("articles")
   .post("/")
   .summary("Create article")
   .code(201, ArticleSchema)  // Missing error codes
+  .auth("bearer")           // Authentication before codes
   // ... rest of the route definition
 ```
 
@@ -379,14 +383,14 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .code(201, ArticleSchema)  // Success: Article created
     .code(400, ErrorSchema)    // Error: Invalid input data
     .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, ErrorSchema)    // Error: Forbidden
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(404, ErrorSchema)    // Error: Not found
     .code(500, ErrorSchema)    // Error: Server error
     .summary("Create new article")
     .description("Creates a new article in the system")
     .tags(["Articles"])
     .auth("bearer")
-    .guard(JWTGuard({ guardName: "userOnly" }))
+    .guard(JWTGuard())
     .body(Type.Omit(ArticleSchema, ["id", "createdAt"]))
     .handler(async (req) => {
       const article = await service.createArticle({
@@ -432,13 +436,13 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .code(200, ArticleSchema)  // Success: Article updated
     .code(400, ErrorSchema)    // Error: Invalid input data
     .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, ErrorSchema)    // Error: Forbidden
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(404, ErrorSchema)    // Error: Article not found
     .code(500, ErrorSchema)    // Error: Server error
     .summary("Update article")
     .tags(["Articles"])
     .auth("bearer")
-    .guard(JWTGuard({ guardName: "userOnly" }))
+    .guard(JWTGuard())
     .params(Type.Object({ id: Type.String() }))
     .body(Type.Partial(Type.Omit(ArticleSchema, ["id", "authorId", "createdAt"])))
     .handler(async (req) => {
@@ -467,13 +471,13 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .delete("/")
     .code(204)                 // Success: Article deleted
     .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, ErrorSchema)    // Error: Forbidden
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(404, ErrorSchema)    // Error: Article not found
     .code(500, ErrorSchema)    // Error: Server error
     .summary("Delete article")
     .tags(["Articles"])
     .auth("bearer")
-    .guard(JWTGuard({ guardName: "userOnly" }))
+    .guard(JWTGuard())
     .params(Type.Object({ id: Type.String() }))
     .handler(async (req) => {
       try {
@@ -526,12 +530,13 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .code(201, CommentSchema)  // Success: Comment created
     .code(400, ErrorSchema)    // Error: Invalid input data
     .code(401, ErrorSchema)    // Error: Unauthorized
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(404, ErrorSchema)    // Error: Article not found
     .code(500, ErrorSchema)    // Error: Server error
     .summary("Add comment to article")
     .tags(["Articles", "Comments"])
     .auth("bearer")
-    .guard(JWTGuard({ guardName: "userOnly" }))
+    .guard(JWTGuard())
     .params(Type.Object({ articleId: Type.String() }))
     .body(Type.Object({ text: Type.String() }))
     .handler(async (req) => {
@@ -558,13 +563,13 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .code(200, CommentSchema)  // Success: Comment updated
     .code(400, ErrorSchema)    // Error: Invalid input data
     .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, ErrorSchema)    // Error: Forbidden
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(404, ErrorSchema)    // Error: Comment not found
     .code(500, ErrorSchema)    // Error: Server error
     .summary("Update comment")
     .tags(["Comments"])
     .auth("bearer")
-    .guard(JWTGuard({ guardName: "userOnly" }))
+    .guard(JWTGuard())
     .params(Type.Object({ id: Type.String() }))
     .body(Type.Object({ text: Type.String() }))
     .handler(async (req) => {
@@ -590,13 +595,13 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .delete("/")
     .code(204)                 // Success: Comment deleted
     .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, ErrorSchema)    // Error: Forbidden
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(404, ErrorSchema)    // Error: Comment not found
     .code(500, ErrorSchema)    // Error: Server error
     .summary("Delete comment")
     .tags(["Comments"])
     .auth("bearer")
-    .guard(JWTGuard({ guardName: "userOnly" }))
+    .guard(JWTGuard())
     .params(Type.Object({ id: Type.String() }))
     .handler(async (req) => {
       try {
@@ -624,7 +629,7 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .code(200, ArticleSchema)  // Success: File attached
     .code(400, ErrorSchema)    // Error: Invalid file
     .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, ErrorSchema)    // Error: Forbidden
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(404, ErrorSchema)    // Error: Article not found
     .code(413, ErrorSchema)    // Error: File too large
     .code(415, ErrorSchema)    // Error: Unsupported file type
@@ -632,7 +637,7 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .summary("Attach file to article")
     .tags(["Articles", "Files"])
     .auth("bearer")
-    .guard(JWTGuard({ guardName: "userOnly" }))
+    .guard(JWTGuard())
     .acceptMultipart()
     .params(Type.Object({ id: Type.String() }))
     .body(Type.Object({ file: Type.String({ format: "binary" }) }))
@@ -672,7 +677,7 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .get("/")
     .code(200)                 // Success: CSV file
     .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, ErrorSchema)    // Error: Forbidden
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(500, ErrorSchema)    // Error: Server error
     .summary("Export articles to CSV")
     .tags(["Articles", "Export"])
@@ -694,7 +699,7 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
     .get("/")
     .code(200, Type.Object({ secret: Type.String() }))  // Success: Admin data
     .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, ErrorSchema)    // Error: Forbidden
+    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
     .code(500, ErrorSchema)    // Error: Server error
     .summary("Admin only (custom guard)")
     .tags(["Articles", "Admin"])

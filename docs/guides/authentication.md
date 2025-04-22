@@ -1,17 +1,27 @@
 # Authentication Guide
 
-This guide covers authentication setup and usage in TSDIAPI.
+[![npm version](https://badge.fury.io/js/%40tsdiapi%2Fjwt-auth.svg)](https://badge.fury.io/js/%40tsdiapi%2Fjwt-auth)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**TSDIAPI-JWT-Auth** is a plugin for the `TSDIAPI-Server` framework that simplifies JWT-based authentication and authorization. It includes utilities for token creation, session validation, and custom guards to secure API endpoints effectively.
+
+## Features
+
+- **Token Management**: Generate and verify JWT tokens with customizable payloads and expiration times.
+- **Session Protection**: Use built-in or custom session validation logic for secure API access.
+- **Custom Guards**: Easily register and reference multiple guards to support various security requirements.
+- **Environment Integration**: Supports configuration through `.env` files to streamline deployment.
 
 ## 🚀 Quick Start
 
 1. **Install JWT Authentication Plugin**:
    ```bash
+   npm install @tsdiapi/jwt-auth
+   ```
+   Or use the CLI:
+   ```bash
    tsdiapi plugins add jwt-auth
    ```
-   This command will:
-   - Install the JWT authentication plugin
-   - Set up necessary configuration
-   - Add required environment variables
 
 2. **Configure Environment Variables**:
    ```env
@@ -20,8 +30,6 @@ This guide covers authentication setup and usage in TSDIAPI.
    ```
 
 ## 🔐 Authentication Types
-
-TSDIAPI supports three authentication methods:
 
 ### 1. Bearer Token Authentication (Recommended for JWT)
 
@@ -47,26 +55,106 @@ createApp({
 });
 ```
 
-#### Protected Route Example
-```typescript
-import { JWTGuard } from "@tsdiapi/jwt-auth";
+## 🔒 Protecting Endpoints
 
+**Important Rules for Route Definition:**
+1. Every route using guards **MUST** define a 403 response code with the following schema:
+   ```typescript
+   .code(403, Type.Object({
+       error: Type.String(),
+   }))
+   ```
+2. Response codes (`code()`) must be defined immediately after the HTTP method (get, post, etc.)
+3. Authentication (`auth()`) and guards (`guard()`) should be defined after response codes
+4. The handler should be defined last
+
+### Example of Correct Route Definition
+```typescript
 useRoute("feature")
     .get("/protected")
-    .auth("bearer")
-    .guard(JWTGuard({ guardName: 'adminOnly' }))
     .code(200, Type.Object({
         data: Type.Any()
     }))
-    .code(401, Type.Object({
+    .code(403, Type.Object({
         error: Type.String()
     }))
+    .auth("bearer")
+    .guard(JWTGuard({ guardName: 'adminOnly' }))
     .handler(async (req) => {
-        // Access user data from JWT
         const userId = req.user.id;
         return { status: 200, data: { userId } };
     })
     .build();
+```
+
+### Applying the `JWTGuard`
+
+Secure API endpoints using `JWTGuard`. You can use it in two ways:
+
+1. For standard bearer token validation:
+```typescript
+useRoute()
+  .get('/protected/endpoint')
+  .code(200, Type.Object({
+      message: Type.String(),
+  }))
+  .code(403, Type.Object({
+      error: Type.String(),
+  }))
+  .auth('bearer')
+  .guard(JWTGuard())
+  .handler(async (req) => {
+    return {
+      status: 200,
+      data: { message: 'Access granted' }
+    }
+  })
+  .build();
+```
+
+2. For custom guard validation:
+```typescript
+useRoute()
+  .get('/admin/dashboard')
+  .code(200, Type.Object({
+      message: Type.String(),
+  }))
+  .code(403, Type.Object({
+      error: Type.String(),
+  }))
+  .auth('bearer')
+  .guard(JWTGuard({ guardName: 'adminOnly' }))
+  .handler(async (req) => {
+    return {
+      status: 200,
+      data: { message: 'Welcome to admin dashboard' }
+    }
+  })
+  .build();
+```
+
+**Note:** Make sure you have registered the guard with the same name (`adminOnly` in this example) during plugin initialization when using custom guards.
+
+### Registering Custom Guards
+
+You can register custom guards during plugin initialization. These guards can later be referenced by name:
+
+```typescript
+createApp({
+  plugins: [
+    createPlugin({
+      secretKey: "your-secret-key",
+      guards: {
+        adminOnly: async (session) => {
+          if (session.role !== "admin") {
+            return "Only administrators are allowed!";
+          }
+          return true;
+        },
+      },
+    }),
+  ],
+});
 ```
 
 ### 2. Using JWT Auth Provider
@@ -95,6 +183,12 @@ if (session) {
 ```typescript
 useRoute("feature")
     .get("/basic-protected")
+    .code(200, Type.Object({
+        message: Type.String()
+    }))
+    .code(403, Type.Object({
+        error: Type.String()
+    }))
     .auth("basic", async (req) => {
         const auth = req.headers.authorization;
         if (!auth) {
@@ -124,84 +218,21 @@ useRoute("feature")
 ```typescript
 useRoute("feature")
     .get("/api-key-protected")
-    .auth("apiKey")
-    .guard(APIKeyGuard({ guardName: 'reportService' }))
     .code(200, Type.Object({
         from: Type.String(),
         key: Type.String(),
     }))
+    .code(403, Type.Object({
+        error: Type.String()
+    }))
+    .auth("apiKey")
+    .guard(APIKeyGuard({ guardName: 'reportService' }))
     .handler(async (req) => {
         return {
             status: 200,
             data: { 
                 from: 'APIKey session', 
                 key: req.session.apiKey 
-            }
-        };
-    })
-    .build();
-```
-
-## 🔑 JWT Authentication Details
-
-### 1. Token Generation
-```typescript
-import { useJWTAuthProvider } from "@tsdiapi/jwt-auth";
-
-// In your login route
-useRoute("auth")
-    .post("/login")
-    .body(Type.Object({
-        username: Type.String(),
-        password: Type.String()
-    }))
-    .handler(async (req) => {
-        const { username, password } = req.body;
-        const user = await validateUser(username, password);
-        
-        if (!user) {
-            return {
-                status: 401,
-                data: { error: "Invalid credentials" }
-            };
-        }
-
-        const authProvider = useJWTAuthProvider();
-        const token = await authProvider.signIn({
-            id: user.id,
-            role: user.role
-        });
-
-        return {
-            status: 200,
-            data: { token }
-        };
-    })
-    .build();
-```
-
-### 2. Token Validation
-```typescript
-useRoute("auth")
-    .get("/verify")
-    .auth("bearer")
-    .guard(JWTGuard())
-    .handler(async (req) => {
-        const authProvider = useJWTAuthProvider();
-        const session = await authProvider.verify<{ id: string; role: string }>(req.token);
-        
-        if (!session) {
-            return {
-                status: 401,
-                data: { error: "Invalid token" }
-            };
-        }
-
-        return {
-            status: 200,
-            data: { 
-                userId: session.id, 
-                role: session.role 
             }
         };
     })
@@ -234,6 +265,16 @@ useRoute("auth")
    - Implement role-based access control
    - Validate session data
    - Handle edge cases
+
+## API Reference
+
+### Plugin Options
+
+| Option           | Type                                      | Description                            |
+| ---------------- | ----------------------------------------- | -------------------------------------- |
+| `secretKey`      | `string`                                  | Secret key for signing JWT tokens.     |
+| `expirationTime` | `number`                                  | Token expiration time in seconds.      |
+| `guards`         | `Record<string, ValidateSessionFunction>` | Custom guards for validating sessions. |
 
 ## ⚠️ Common Issues
 
@@ -273,4 +314,8 @@ useRoute("auth")
 
 - [JWT Documentation](https://jwt.io/introduction)
 - [Fastify JWT Plugin](https://github.com/fastify/fastify-jwt)
-- [OAuth 2.0 Specification](https://oauth.net/2/) 
+- [OAuth 2.0 Specification](https://oauth.net/2/)
+
+## License
+
+This plugin is open-source and available under the [MIT License](LICENSE). 
