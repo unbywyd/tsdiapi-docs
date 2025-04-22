@@ -134,21 +134,54 @@ The feature name is determined by the directory name and must match the prefix o
 All Prisma models are automatically generated into TypeBox schemas in `@base/api/typebox-schemas/models`. If a schema is not available there, create it in the feature's `name.types.ts` file.
 
 ```typescript
-// First try to import from generated schemas
-import { ArticleSchema } from "@base/api/typebox-schemas/models/ArticleSchema.model.js";
+// Import schemas from generated models
+import { OutputContactSchema } from "@base/api/typebox-schemas/models/OutputContactSchema.model.js";
+import { InputContactSchema } from "@base/api/typebox-schemas/models/InputContactSchema.model.js";
 
-// If not available, create in feature's types file
-// src/api/features/articles/articles.types.ts
-import { Type } from "@sinclair/typebox";
-import { DateString } from "@tsdiapi/server";
+// Error schema
+const ErrorSchema = Type.Object({ error: Type.String() });
 
-export const ArticleSchema = Type.Object({
-  id: Type.String(),
-  title: Type.String(),
-  content: Type.String(),
-  createdAt: DateString()
-});
+export default function ContactsModule({ useRoute }: AppContext): void {
+    const service = Container.get(ContactsService);
+
+    // Create contact
+    useRoute("contacts")
+        .post("/")
+        .code(200, OutputContactSchema)  // Success: Contact created
+        .code(403, ErrorSchema)    // Error: Forbidden
+        .code(400, ErrorSchema)    // Error: Invalid input data
+        .code(401, ErrorSchema)    // Error: Unauthorized
+        .code(500, ErrorSchema)    // Error: Server error
+        .summary("Create new contact")
+        .description("Creates a new contact for the current user")
+        .tags(["Contacts"])
+        .auth("bearer")
+        .guard(JWTGuard())
+        .body(InputContactSchema)
+        .handler(async (req) => {
+            try {
+                const session = useSession<UserSession>(req);
+                const contact = await service.createContact({
+                    ...req.body,
+                    userId: session?.id
+                });
+
+                return { status: 200, data: contact };
+            } catch (error) {
+                if (error instanceof DatabaseError) {
+                    return { status: 500, data: { error: error.message } };
+                }
+                return { status: 500, data: { error: "Internal server error" } };
+            }
+        })
+        .build();
+}
 ```
+
+Note: Always use:
+- `Input*Schema` for request body validation
+- `Output*Schema` for response data validation
+- Generated schemas from `@base/api/typebox-schemas/models` when available
 
 ### 1. First, let's create a service (`articles.service.ts`):
 
