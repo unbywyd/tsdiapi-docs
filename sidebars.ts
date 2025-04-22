@@ -42,6 +42,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'guides/authentication',
         'guides/database-integration',
+        'guides/prismaql',
         'guides/files',
         'guides/error-handling',
         'guides/production-setup'
@@ -63,6 +64,14 @@ const sidebars: SidebarsConfig = {
       items: [
         'cli/commands',
         'cli/code-generation'
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Examples',
+      items: [
+        'examples/code',
+        'examples/prisma'
       ]
     }
   ]

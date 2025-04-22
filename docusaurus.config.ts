@@ -76,6 +76,11 @@ const config: Config = {
           label: 'Docs',
         },
         {
+          to: '/examples/code',
+          label: 'Examples',
+          position: 'left'
+        },
+        {
           to: 'https://webto.pro/assistant',
           label: 'WebTo.Pro',
           position: 'left'

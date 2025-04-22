@@ -46,7 +46,7 @@ export default function FeatureModule({ useRoute }: AppContext): void {
 
 ## 🛠 PrismaQL for Schema Management
 
-PrismaQL provides a safe way to modify your Prisma schema. It automatically creates backups and handles migrations safely.
+PrismaQL provides a safe way to modify your Prisma schema. It automatically creates backups and handles migrations safely. For a complete reference of available commands, see the [PrismaQL Documentation](../guides/prismaql.md).
 
 ### Basic Commands
 ```bash
