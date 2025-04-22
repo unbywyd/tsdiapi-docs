@@ -58,6 +58,53 @@ useRoute("articles")
   // ... rest of the route definition
 ```
 
+## Session Handling
+The session object contains all the data that was included in the JWT token when it was created. For example, if you signed in with:
+
+```typescript
+const token = await authProvider.signIn({
+  userId: "123",
+  role: "admin",
+  permissions: ["read", "write"]
+});
+```
+
+Then in your route handler, you can access all these fields:
+```typescript
+const { userId, role, permissions } = req.session;
+```
+
+The session data is automatically populated from the JWT token when using session-based authentication. Here's a complete example:
+
+```typescript
+useRoute("profile")
+  .get("/")
+  .code(200, ProfileSchema)
+  .code(401, ErrorSchema)
+  .summary("Get user profile")
+  .auth("session")  // Use session-based authentication
+  .handler(async (req) => {
+    // Access session data that was set during signIn
+    const userId = req.session.userId;
+    const userRole = req.session.role;
+    
+    // Access session metadata
+    const sessionId = req.session.id;
+    const sessionExpires = req.session.expires;
+    
+    // Get user profile using session data
+    const profile = await userService.getProfile(userId);
+    return { status: 200, data: profile };
+  })
+  .build();
+```
+
+Common session properties:
+- `req.session.id` - Unique session identifier
+- `...other fields from JWT token`
+
+Note: All custom data passed to `authProvider.signIn()` will be available in `req.session` in your route handlers.
+
 ## Feature Structure
 A feature is any directory in `src/api` that contains at least two required files:
 - `name.service.ts` - Contains business logic
