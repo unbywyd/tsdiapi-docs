@@ -1,1108 +1,478 @@
-# Code Examples
-
-Example that will help generate code using AI, you need to follow all examples and rules below:
-
-## Date Type
-Always use `DateString` from `@tsdiapi/server` for date fields instead of `Type.String({ format: "date-time" })`:
+# Code Example
 
 ```typescript
-import { DateString } from "@tsdiapi/server";
 
-// Correct
-createdAt: DateString()
-
-// Incorrect
-createdAt: Type.String({ format: "date-time" })
-```
-
-## File Type
-Always use `Type.String({ format: "binary" })` for file fields:
-
-```typescript
-// Correct
-file: Type.String({ format: "binary" })
-
-// Incorrect
-file: Type.String()
-```
-
-## Response Codes
-Every route MUST register ALL possible response codes immediately after the HTTP method definition. This includes:
-- Success codes (200, 201, 204, etc.)
-- Error codes (400, 401, 403, 404, 500, etc.)
-- Each code MUST have a corresponding schema
-- All possible error scenarios MUST be documented
-- For authenticated routes, 403 response code with `error: string` schema is REQUIRED
-
-```typescript
-// Correct
-useRoute("articles")
-  .post("/")
-  .code(201, ArticleSchema)  // Success code
-  .code(400, ErrorSchema)    // Validation error
-  .code(401, ErrorSchema)    // Unauthorized
-  .code(403, Type.Object({ error: Type.String() }))    // Forbidden (REQUIRED for auth)
-  .code(404, ErrorSchema)    // Not found
-  .code(500, ErrorSchema)    // Server error
-  .summary("Create article")
-  .auth("bearer")           // Authentication
-  .guard(JWTGuard())        // Guard
-  // ... rest of the route definition
-
-// Incorrect
-useRoute("articles")
-  .post("/")
-  .summary("Create article")
-  .code(201, ArticleSchema)  // Missing error codes
-  .auth("bearer")           // Authentication before codes
-  // ... rest of the route definition
-```
-
-## Session Handling
-The session object contains all the data that was included in the JWT token when it was created. For example, if you signed in with:
-
-```typescript
-const token = await authProvider.signIn({
-  userId: "123",
-  role: "admin",
-  permissions: ["read", "write"]
-});
-```
-
-Then in your route handler, you can access all these fields:
-```typescript
-const { userId, role, permissions } = req.session;
-```
-
-For type-safe session access, you can use `useSession` from `@tsdiapi/jwt-auth`:
-
-```typescript
-import { JWTGuard, useSession } from "@tsdiapi/jwt-auth";
-
-// Define your session type
-type UserSession = {
-  userId: string;
-  role: string;
-  permissions: string[];
-};
-
-useRoute("profile")
-  .get("/")
-  .code(200, ProfileSchema)
-  .code(401, ErrorSchema)
-  .summary("Get user profile")
-  .auth("session")
-  .handler(async (req) => {
-    // Get type-safe session
-    const session = useSession<UserSession>(req);
-    
-    // Now you have full type checking and autocompletion
-    const userId = session.userId;
-    const role = session.role;
-    const permissions = session.permissions;
-    
-    const profile = await userService.getProfile(userId);
-    return { status: 200, data: profile };
-  })
-  .build();
-```
-
-Common session properties:
-- `...other fields from JWT token`
-
-Note: All custom data passed to `authProvider.signIn()` will be available in `req.session` in your route handlers.
-
-## Error Handling
-Every feature MUST have its own error classes defined in a separate `name.errors.ts` file. These classes should extend the base Error class and include a descriptive name:
-
-```typescript
-// Example from contacts.errors.ts
-export class ContactNotFoundError extends Error {
-  constructor(id: string) {
-    super(`Contact with ID ${id} not found`);
-    this.name = "ContactNotFoundError";
-  }
-}
-
-export class MainContactNotFoundError extends Error {
-  constructor(userId: string) {
-    super(`Main contact not found for user ${userId}`);
-    this.name = "MainContactNotFoundError";
-  }
-}
-
-export class DatabaseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "DatabaseError";
-  }
-}
-```
-
-## Entity Relationships
-When working with related entities in Prisma, use the following patterns:
-
-```typescript
-// Setting a relationship (one-to-one or one-to-many)
-await prisma.entity.update({
-  where: { id: entityId },
-  data: { 
-    relatedEntity: { 
-      connect: { id: relatedId } 
-    }
-  }
-});
-
-// Removing a relationship
-await prisma.entity.update({
-  where: { id: entityId },
-  data: { 
-    relatedEntity: { 
-      disconnect: true 
-    }
-  }
-});
-
-// Example from contacts.service.ts
-async setMainContact(userId: string, contactId: string) {
-  try {
-    const contact = await this.getContactById(contactId);
-    
-    if (contact.userId !== userId) {
-      throw new ContactNotFoundError(contactId);
-    }
-
-    // First, remove main contact from any other contacts
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        mainContact: {
-          disconnect: true
-        }
-      }
-    });
-
-    // Set the new main contact
-    return await this.prisma.contact.update({
-      where: { id: contactId },
-      data: { mainUserContact: { connect: { id: userId } } }
-    });
-  } catch (error) {
-    if (error instanceof ContactNotFoundError) throw error;
-    throw new DatabaseError("Failed to set main contact");
-  }
-}
-```
-
-## Optional Fields and Complex Queries
-When defining schemas with optional fields or complex query parameters:
-
-```typescript
-// Schema with optional fields
-const ContactSchema = Type.Object({
-  name: Type.Optional(Type.String()),
-  telegram: Type.Optional(Type.String()),
-  phoneNumber: Type.Optional(Type.String()),
-  hasWhatsapp: Type.Optional(Type.Boolean())
-});
-
-// Complex query parameters
-.query(
-  Type.Object({
-    name: Type.Optional(Type.String()),
-    telegram: Type.Optional(Type.String()),
-    phoneNumber: Type.Optional(Type.String()),
-    hasWhatsapp: Type.Optional(Type.Boolean())
-  })
-)
-
-// Service method with complex filtering
-async listContacts(userId: string, filters?: {
-  name?: string;
-  telegram?: string;
-  phoneNumber?: string;
-  hasWhatsapp?: boolean;
-}) {
-  return this.prisma.contact.findMany({
-    where: {
-      userId,
-      ...filters
-    },
-    orderBy: { name: "asc" }
-  });
-}
-```
-
-## Service Layer Best Practices
-1. Always wrap database operations in try-catch blocks
-2. Throw appropriate custom errors
-3. Handle relationships carefully
-4. Use TypeDI for dependency injection
-5. Keep business logic in the service layer
-6. Always validate user ownership before operations
-
-```typescript
-@Service()
-export class EntityService {
-  private prisma = usePrisma<PrismaClient>();
-
-  async createEntity(data: {
-    name?: string;
-    // ... other optional fields
-    requiredField: string;
-    userId: string; // Always include userId for ownership
-  }) {
-    try {
-      return await this.prisma.entity.create({
-        data: {
-          name: data.name,
-          requiredField: data.requiredField,
-          userId: data.userId
-        }
-      });
-    } catch (error) {
-      throw new DatabaseError("Failed to create entity");
-    }
-  }
-
-  // Always check ownership
-  async updateEntity(id: string, userId: string, data: Partial<Entity>) {
-    const entity = await this.getEntityById(id);
-    if (entity.userId !== userId) {
-      throw new EntityNotFoundError(id);
-    }
-    // ... rest of the update logic
-  }
-}
-```
-
-## Route Handler Error Handling
-Always handle specific error types in route handlers and include proper error codes:
-
-```typescript
-.handler(async (req) => {
-  try {
-    const session = useSession<UserSession>(req);
-    const contact = await service.getContactById(req.params.id);
-    
-    // Check ownership
-    if (contact.userId !== session?.id) {
-      return { status: 403, data: { error: "Forbidden" } };
-    }
-    
-    return { status: 200, data: contact };
-  } catch (error) {
-    if (error instanceof ContactNotFoundError) {
-      return { status: 404, data: { error: error.message } };
-    }
-    if (error instanceof DatabaseError) {
-      return { status: 500, data: { error: error.message } };
-    }
-    return { status: 500, data: { error: "Internal server error" } };
-  }
-})
-```
-
-## Controller Naming and API Versioning
-
-### Controller Naming
-Always use the controller name in `useRoute()` that matches your feature name. The path in `.get()`, `.post()`, etc. should be relative to this controller name. Each route must be defined separately:
-
-```typescript
-// Correct - separate route definitions
-useRoute("contacts")
-  .get("/")
-  .version("1")
-  .code(200, Type.Array(ContactSchema))
-  .build();
-
-useRoute("contacts")
-  .get("/:id")
-  .version("1")
-  .code(200, ContactSchema)
-  .code(404, ErrorSchema)
-  .build();
-
-useRoute("contacts")
-  .post("/")
-  .version("1")
-  .code(201, ContactSchema)
-  .code(400, ErrorSchema)
-  .build();
-
-// Incorrect - multiple methods on same route
-useRoute("contacts")
-  .get("/")          // Wrong: multiple methods
-  .get("/:id")       // Wrong: multiple methods
-  .post("/")         // Wrong: multiple methods
-  .put("/:id")       // Wrong: multiple methods
-  .delete("/:id")    // Wrong: multiple methods
-```
-
-### API Versioning
-Always specify API version for each route using `.version()`. This helps maintain backward compatibility. Each route must be defined separately:
-
-```typescript
-// List contacts
-useRoute("contacts")
-  .get("/")
-  .version("1")
-  .code(200, Type.Array(ContactSchema))
-  .code(400, ErrorSchema)
-  .summary("Get contacts list")
-  .tags(["Contacts"])
-  .auth("bearer")
-  .guard(JWTGuard())
-  .handler(async (req) => {
-    // ... handler implementation
-  })
-  .build();
-
-// Get contact by ID
-useRoute("contacts")
-  .get("/:id")
-  .version("1")
-  .code(200, ContactSchema)
-  .code(404, ErrorSchema)
-  .summary("Get contact by ID")
-  .tags(["Contacts"])
-  .auth("bearer")
-  .guard(JWTGuard())
-  .params(Type.Object({ id: Type.String() }))
-  .handler(async (req) => {
-    // ... handler implementation
-  })
-  .build();
-
-// Create contact
-useRoute("contacts")
-  .post("/")
-  .version("1")
-  .code(201, ContactSchema)
-  .code(400, ErrorSchema)
-  .summary("Create contact")
-  .tags(["Contacts"])
-  .auth("bearer")
-  .guard(JWTGuard())
-  .body(ContactSchema)
-  .handler(async (req) => {
-    // ... handler implementation
-  })
-  .build();
-```
-
-### Versioning Best Practices
-1. Always specify version for each route
-2. Use semantic versioning (e.g., "1", "2", etc.)
-3. When making breaking changes, increment the major version
-4. Document version changes in API changelog
-5. Support multiple versions simultaneously for backward compatibility
-6. Each route must be defined separately with a single HTTP method
-
-## Feature Structure
-A feature is any directory in `src/api` that contains at least two required files:
-- `name.service.ts` - Contains business logic
-- `name.module.ts` - Contains route definitions
-
-Example structure:
-```
-src/
-└── api/
-    └── articles/           # Feature directory
-        ├── articles.service.ts  # Business logic
-        ├── articles.module.ts   # Route definitions
-        ├── articles.errors.ts   # Custom errors (optional)
-        └── articles.types.ts    # Type definitions (optional)
-```
-
-The feature name is determined by the directory name and must match the prefix of the service and module files.
-
-## TypeBox Schema Generation
-All Prisma models are automatically generated into TypeBox schemas in `@base/api/typebox-schemas/models`. If a schema is not available there, create it in the feature's `name.types.ts` file.
-
-```typescript
-// Import schemas from generated models
-import { OutputContactSchema } from "@base/api/typebox-schemas/models/OutputContactSchema.model.js";
-import { InputContactSchema } from "@base/api/typebox-schemas/models/InputContactSchema.model.js";
-
-// Error schema
-const ErrorSchema = Type.Object({ error: Type.String() });
-
-export default function ContactsModule({ useRoute }: AppContext): void {
-    const service = Container.get(ContactsService);
-
-    // Create contact
-    useRoute("contacts")
-        .post("/")
-        .code(200, OutputContactSchema)  // Success: Contact created
-        .code(403, ErrorSchema)    // Error: Forbidden
-        .code(400, ErrorSchema)    // Error: Invalid input data
-        .code(401, ErrorSchema)    // Error: Unauthorized
-        .code(500, ErrorSchema)    // Error: Server error
-        .summary("Create new contact")
-        .description("Creates a new contact for the current user")
-        .tags(["Contacts"])
-        .auth("bearer")
-        .guard(JWTGuard())
-        .body(InputContactSchema)
-        .handler(async (req) => {
-            try {
-                const session = useSession<UserSession>(req);
-                const contact = await service.createContact({
-                    ...req.body,
-                    userId: session?.id
-                });
-
-                return { status: 200, data: contact };
-            } catch (error) {
-                if (error instanceof DatabaseError) {
-                    return { status: 500, data: { error: error.message } };
-                }
-                return { status: 500, data: { error: "Internal server error" } };
-            }
-        })
-        .build();
-}
-```
-
-Note: Always use:
-- `Input*Schema` for request body validation
-- `Output*Schema` for response data validation
-- Generated schemas from `@base/api/typebox-schemas/models` when available
-
-### 1. First, let's create a service (`articles.service.ts`):
-
-```typescript
-/* ──────────────────────────────────────────────────────────────
-   src/api/features/articles/articles.service.ts
-   Full-featured service for working with articles and comments
-   with error handling and DI through TypeDI
-──────────────────────────────────────────────────────────────── */
-import { Service } from "typedi";
-import { usePrisma } from "@tsdiapi/prisma";
-import { PrismaClient } from "@generated/prisma/client.js";
+// ✅ Import framework utilities and helpers
 import {
-  ArticleNotFoundError,
-  CommentNotFoundError,
-  InvalidStatusError,
-  DatabaseError
-} from "./articles.errors.js";
+  DateString,
+  AppContext,
+  useResponseSchemas,
+  ResponseBadRequest,
+  ResponseNotFound,
+  ResponseErrorSchema,
+  ResponseInternalServerError,
+  ResponseForbidden,
+  response400,
+  responseForbidden,
+  responseNull
+} from "@tsdiapi/server"; // Core routing and types
+import { Type } from "@sinclair/typebox"; // For schema definitions
+import { JWTGuard, useSession } from "@tsdiapi/jwt-auth"; // Auth guard and session access
+import { Container } from "typedi"; // DI container
+import { useS3Provider } from "@tsdiapi/s3"; // S3 provider
+// ✅ Import generated TypeBox schemas for Prisma models
+// Output<Model>Schema is used for responses
+// Input<Model>Schema is used for request bodies
+import {
+  OutputContactSchema,
+  InputContactSchema
+} from "@base/api/typebox-schemas/models";
 
-// Типы статусов статьи
-type ArticleStatus = "draft" | "published" | "archived";
+// ✅ Import service
+import { ContactService } from "./contacts.service.js";
 
-@Service()
-export class ArticlesService {
-  private prisma = usePrisma<PrismaClient>();
-
-  /* CRUD для статей ─────────────────────────────────────────── */
-  async createArticle(data: {
-    title: string;
-    content: string;
-    authorId: string;
-    status?: ArticleStatus;
-  }) {
-    try {
-      return await this.prisma.article.create({
-        data: {
-          title: data.title,
-          content: data.content,
-          authorId: data.authorId,
-          status: data.status || "draft"
-        }
-      });
-    } catch (error) {
-      throw new DatabaseError("Failed to create article");
-    }
-  }
-
-  async getArticleById(id: string) {
-    const article = await this.prisma.article.findUnique({
-      where: { id },
-      include: { comments: true }
-    });
-
-    if (!article) {
-      throw new ArticleNotFoundError(id);
-    }
-
-    return article;
-  }
-
-  async updateArticle(
-    id: string,
-    data: Partial<{
-      title: string;
-      content: string;
-      status: ArticleStatus;
-    }>
-  ) {
-    try {
-      if (data.status && !["draft", "published", "archived"].includes(data.status)) {
-        throw new InvalidStatusError(data.status);
-      }
-
-      const updated = await this.prisma.article.update({
-        where: { id },
-        data
-      });
-
-      return updated;
-    } catch (error) {
-      if (error instanceof InvalidStatusError) throw error;
-      throw new DatabaseError("Failed to update article");
-    }
-  }
-
-  async deleteArticle(id: string) {
-    try {
-      await this.prisma.article.delete({ where: { id } });
-      return { success: true };
-    } catch (error) {
-      throw new DatabaseError("Failed to delete article");
-    }
-  }
-
-  async listArticles(options: {
-    page?: number;
-    limit?: number;
-    status?: ArticleStatus;
-  }) {
-    const { page = 1, limit = 20, status } = options;
-    const skip = (page - 1) * limit;
-
-    return this.prisma.article.findMany({
-      where: status ? { status } : undefined,
-      skip,
-      take: limit,
-      orderBy: { createdAt: "desc" }
-    });
-  }
-
-  /* Методы для комментариев ─────────────────────────────────── */
-  async addComment(articleId: string, data: { text: string; authorId: string }) {
-    try {
-      return await this.prisma.comment.create({
-        data: {
-          text: data.text,
-          authorId: data.authorId,
-          articleId
-        }
-      });
-    } catch (error) {
-      throw new DatabaseError("Failed to add comment");
-    }
-  }
-
-  async getCommentById(id: string) {
-    const comment = await this.prisma.comment.findUnique({ where: { id } });
-
-    if (!comment) {
-      throw new CommentNotFoundError(id);
-    }
-
-    return comment;
-  }
-
-  async updateComment(id: string, text: string) {
-    try {
-      return await this.prisma.comment.update({
-        where: { id },
-        data: { text }
-      });
-    } catch (error) {
-      throw new DatabaseError("Failed to update comment");
-    }
-  }
-
-  async deleteComment(id: string) {
-    try {
-      await this.prisma.comment.delete({ where: { id } });
-      return { success: true };
-    } catch (error) {
-      throw new DatabaseError("Failed to delete comment");
-    }
-  }
-
-  /* Файловые операции ──────────────────────────────────────── */
-  async attachFile(articleId: string, filePath: string) {
-    try {
-      return await this.prisma.article.update({
-        where: { id: articleId },
-        data: { attachments: { push: filePath } }
-      });
-    } catch (error) {
-      throw new DatabaseError("Failed to attach file");
-    }
-  }
-
-  /* Экспорт данных ──────────────────────────────────────────── */
-  async exportArticlesToCsv(): Promise<Buffer> {
-    const articles = await this.prisma.article.findMany({
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        createdAt: true
-      }
-    });
-
-    const headers = "id,title,status,createdAt\n";
-    const csv = headers + articles.map(a => 
-      `${a.id},"${a.title.replace(/"/g, '""')}",${a.status},${a.createdAt.toISOString()}`
-    ).join("\n");
-
-    return Buffer.from(csv, "utf8");
-  }
-}
-```
-
-### 2. Let's create an errors file (`articles.errors.ts`):
-
-```typescript
-/* ──────────────────────────────────────────────────────────────
-   src/api/features/articles/articles.errors.ts
-   Custom errors for the articles service
-──────────────────────────────────────────────────────────────── */
-export class ArticleNotFoundError extends Error {
-  constructor(id: string) {
-    super(`Article with ID ${id} not found`);
-    this.name = "ArticleNotFoundError";
-  }
-}
-
-export class CommentNotFoundError extends Error {
-  constructor(id: string) {
-    super(`Comment with ID ${id} not found`);
-    this.name = "CommentNotFoundError";
-  }
-}
-
-export class InvalidStatusError extends Error {
-  constructor(status: string) {
-    super(`Invalid article status: ${status}`);
-    this.name = "InvalidStatusError";
-  }
-}
-
-export class DatabaseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "DatabaseError";
-  }
-}
-```
-
-### 3. Now let's create a module (`articles.module.ts`):
-
-```typescript
-/* ──────────────────────────────────────────────────────────────
-   src/api/features/articles/articles.module.ts
-   Full-featured module with all possible route types:
-   - CRUD for articles and comments
-   - Pagination and filtering
-   - JWT authentication
-   - File uploads
-   - Data export
-   - Custom guards
-──────────────────────────────────────────────────────────────── */
-import { AppContext, DateString } from "@tsdiapi/server";
-import { Type } from "@sinclair/typebox";
-import { Container } from "typedi";
-import { JWTGuard } from "@tsdiapi/jwt-auth";
-import { FastifyReply } from "fastify";
-import { ArticlesService } from "./articles.service.js";
-import { OutputTsdiapiSchema } from "@base/api/typebox-schemas/models/OutputTsdiapiSchema.model.js";
-
-// Схемы для валидации
-const ErrorSchema = Type.Object({ error: Type.String() });
-const FileResult = Type.Object({ url: Type.String(), filename: Type.String() });
-const ManyFilesRes = Type.Object({ files: Type.Array(FileResult) });
-
-// Enum для статусов статей
-const ArticleStatusEnum = Type.String({
-  enum: ["draft", "published", "archived"],
-  description: "Article status"
+// 🔧 Generic reusable schema for all API error messages
+// RULE: Use error schema to add details to the error response
+const ErrorDetailsSchema = Type.Object({
+  errors: Type.Array(Type.Object({
+    message: Type.String()
+  }))
 });
 
-// Схема статьи
-const ArticleSchema = Type.Intersect([
-  OutputTsdiapiSchema,
-  Type.Object({
-    title: Type.String(),
-    content: Type.String(),
-    status: ArticleStatusEnum,
-    authorId: Type.String(),
-    createdAt: DateString()
-  })
-]);
-
-// Схема комментария
-const CommentSchema = Type.Object({
-  id: Type.String(),
-  text: Type.String(),
-  authorId: Type.String(),
-  articleId: Type.String(),
-  createdAt: DateString()
+// Add file-related schemas
+const OutputUploadSchema = Type.Object({
+  url: Type.String(),
+  key: Type.String(),
+  bucket: Type.String(),
+  region: Type.String()
 });
 
-export default function ArticlesModule({ useRoute }: AppContext): void {
-  const service = Container.get(ArticlesService);
+// Simple schema with one regular field and one file
+import { DateString } from "@tsdiapi/server"; // RULE: Use DateString for date fields!
+const InputUploadSchema = Type.Object({
+  description: Type.String(),
+  dateField: DateString(),
+  // RULE: Use Type.String({ format: "binary" }) for file fields
+  file: Type.String({ format: "binary" })
+});
 
-  /* CRUD для статей ─────────────────────────────────────────── */
+// Multiple files schema
+const InputMultiFilesSchema = Type.Object({
+  files: Type.Array(Type.String({ format: "binary" }))
+});
+// or
+const InputWithFilesSchema = Type.Object({
+  photo: Type.String({ format: "binary" }),
+  document: Type.String({ format: "binary" }),
+  // and more fields
+});
 
-  // Create article (with JWT authentication)
-  useRoute("articles")
-    .post("/")
-    .code(201, ArticleSchema)  // Success: Article created
-    .code(400, ErrorSchema)    // Error: Invalid input data
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(404, ErrorSchema)    // Error: Not found
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Create new article")
-    .description("Creates a new article in the system")
-    .tags(["Articles"])
-    .auth("bearer")
-    .guard(JWTGuard())
-    .body(Type.Omit(ArticleSchema, ["id", "createdAt"]))
-    .handler(async (req) => {
-      const article = await service.createArticle({
-        ...req.body,
-        authorId: req.user.id // From JWT token
-      });
-      return { status: 201, data: article };
-    })
-    .build();
+// ─────────────────────────────────────────────────────────────
+// Main module export — loaded automatically by the framework
+// File: src/api/contacts/contacts.module.ts
+// ─────────────────────────────────────────────────────────────
+export default function ContactsModule({ useRoute }: AppContext): void {
+  // 🧩 Dependency Injection — retrieve service instance via TypeDI
+  const contactService = Container.get(ContactService);
 
-  // Get article by ID
-  useRoute("articles/:id")
-    .get("/")
-    .code(200, Type.Intersect([
-      ArticleSchema,
-      Type.Object({
-        comments: Type.Array(CommentSchema)
-      })
-    ]))  // Success: Article found
-    .code(400, ErrorSchema)    // Error: Invalid ID format
-    .code(404, ErrorSchema)    // Error: Article not found
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Get article by ID")
-    .tags(["Articles"])
-    .params(Type.Object({ id: Type.String() }))
-    .resolve(async (req) => {
-      try {
-        const article = await service.getArticleById(req.params.id);
-        return { status: 200, data: article };
-      } catch (error) {
-        if (error instanceof ArticleNotFoundError) {
-          return { status: 404, data: { error: error.message } };
-        }
-        throw error;
-      }
-    })
-    .handler(async (req) => req.routeData)
-    .build();
+  // Setup response schemas for the module
+  const { codes, sendError, sendSuccess, send } = useResponseSchemas(
+    OutputContactSchema,
+    ErrorDetailsSchema
+  );
 
-  // Update article
-  useRoute("articles/:id")
-    .put("/")
-    .code(200, ArticleSchema)  // Success: Article updated
-    .code(400, ErrorSchema)    // Error: Invalid input data
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(404, ErrorSchema)    // Error: Article not found
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Update article")
-    .tags(["Articles"])
-    .auth("bearer")
-    .guard(JWTGuard())
-    .params(Type.Object({ id: Type.String() }))
-    .body(Type.Partial(Type.Omit(ArticleSchema, ["id", "authorId", "createdAt"])))
-    .handler(async (req) => {
-      try {
-        const article = await service.getArticleById(req.params.id);
-        if (article.authorId !== req.user.id) {
-          return { status: 403, data: { error: "Forbidden" } };
-        }
-
-        const updated = await service.updateArticle(req.params.id, req.body);
-        return { status: 200, data: updated };
-      } catch (error) {
-        if (error instanceof ArticleNotFoundError) {
-          return { status: 404, data: { error: error.message } };
-        }
-        if (error instanceof InvalidStatusError) {
-          return { status: 400, data: { error: error.message } };
-        }
-        throw error;
-      }
-    })
-    .build();
-
-  // Delete article
-  useRoute("articles/:id")
-    .delete("/")
-    .code(204)                 // Success: Article deleted
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(404, ErrorSchema)    // Error: Article not found
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Delete article")
-    .tags(["Articles"])
-    .auth("bearer")
-    .guard(JWTGuard())
-    .params(Type.Object({ id: Type.String() }))
-    .handler(async (req) => {
-      try {
-        const article = await service.getArticleById(req.params.id);
-        if (article.authorId !== req.user.id) {
-          return { status: 403, data: { error: "Forbidden" } };
-        }
-
-        await service.deleteArticle(req.params.id);
-        return { status: 204 };
-      } catch (error) {
-        if (error instanceof ArticleNotFoundError) {
-          return { status: 404, data: { error: error.message } };
-        }
-        throw error;
-      }
-    })
-    .build();
-
-  // List articles with pagination and filtering
-  useRoute("articles")
-    .get("/")
-    .code(200, Type.Array(ArticleSchema))  // Success: Articles list
-    .code(400, ErrorSchema)                // Error: Invalid query parameters
-    .code(500, ErrorSchema)                // Error: Server error
-    .summary("Get articles list")
-    .tags(["Articles"])
+  // ─────────────────────────────────────────────────────────────
+  // GET /contacts — List contacts with optional filters
+  // RULES:
+  // 1. Every route MUST register ALL possible response codes
+  // 2. Success codes use 200 for all operations (including POST)
+  // 3. Error codes (400, 401, 403, 404, 500) must be documented
+  // 4. For authenticated routes, 403 response is REQUIRED
+  // 5. Each code MUST have a corresponding schema
+  // ─────────────────────────────────────────────────────────────
+  useRoute()
+    .controller("contacts") // RULE: Use controller name
+    .get("/") // RULE: Use HTTP method and path
+    .version("1") // RULE: Always specify API version
+    .codes(codes) // Use the predefined response codes
+    .summary("List all user contacts") // RULE: Use a meaningful summary, swagger will use it as a description
+    .tags(["Contacts"]) // RULE: Use tags for grouping, swagger will use it for grouping
+    .auth("bearer") // RULE: Use auth method and guard (import from @tsdiapi/jwt-auth)
+    .guard(JWTGuard()) // RULE: Use guard for authentication (import from @tsdiapi/jwt-auth)
+    // Then we define the query parameters
     .query(
       Type.Object({
-        page: Type.Number({ minimum: 1, default: 1 }),
-        limit: Type.Number({ minimum: 1, maximum: 100, default: 20 }),
-        status: Type.Optional(ArticleStatusEnum)
+        // RULE: Optional fields must be explicitly marked
+        name: Type.Optional(Type.String()),
+        telegram: Type.Optional(Type.String()),
+        phoneNumber: Type.Optional(Type.String()),
+        hasWhatsapp: Type.Optional(Type.Boolean())
       })
     )
-    .handler(async (req) => ({
-      status: 200,
-      data: await service.listArticles({
-        page: req.query.page,
-        limit: req.query.limit,
-        status: req.query.status
-      })
-    }))
-    .build();
-
-  /* CRUD для комментариев ───────────────────────────────────── */
-
-  // Add comment
-  useRoute("articles/:articleId/comments")
-    .post("/")
-    .code(201, CommentSchema)  // Success: Comment created
-    .code(400, ErrorSchema)    // Error: Invalid input data
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(404, ErrorSchema)    // Error: Article not found
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Add comment to article")
-    .tags(["Articles", "Comments"])
-    .auth("bearer")
-    .guard(JWTGuard())
-    .params(Type.Object({ articleId: Type.String() }))
-    .body(Type.Object({ text: Type.String() }))
-    .handler(async (req) => {
-      try {
-        await service.getArticleById(req.params.articleId);
-
-        const comment = await service.addComment(req.params.articleId, {
-          text: req.body.text,
-          authorId: req.user.id
+    // Then we define the route handler, we can use resolve() for existence check and return error object instead of throwing
+    // resolver will be called before handler, and will return the data to the handler in req.routeData as type of the resolver return type
+    .resolve(async (req) => {
+      const contact = await contactService.getContactById(req.params.id);
+      if (!contact) {
+        // RULE: Return error object instead of throwing
+        return sendError("Contact not found", {
+          errors: [{
+            message: "Contact not found"
+          }]
         });
-        return { status: 201, data: comment };
-      } catch (error) {
-        if (error instanceof ArticleNotFoundError) {
-          return { status: 404, data: { error: error.message } };
-        }
-        throw error;
       }
+      return contact;
     })
-    .build();
-
-  // Update comment
-  useRoute("comments/:id")
-    .put("/")
-    .code(200, CommentSchema)  // Success: Comment updated
-    .code(400, ErrorSchema)    // Error: Invalid input data
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(404, ErrorSchema)    // Error: Comment not found
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Update comment")
-    .tags(["Comments"])
-    .auth("bearer")
-    .guard(JWTGuard())
-    .params(Type.Object({ id: Type.String() }))
-    .body(Type.Object({ text: Type.String() }))
+    // Then we define the route handler, we can use useSession for type-safe session access
+    // We can use req.routeData for resolved data
     .handler(async (req) => {
       try {
-        const comment = await service.getCommentById(req.params.id);
-        if (comment.authorId !== req.user.id) {
-          return { status: 403, data: { error: "Forbidden" } };
-        }
-
-        const updated = await service.updateComment(req.params.id, req.body.text);
-        return { status: 200, data: updated };
+         // RULE: Use useSession for type-safe session access
+      const session = useSession<{ userId: string }>(req);
+      const contact = req.routeData; // RULE: Use req.routeData for resolved data
+      const data = await contactService.listContacts(session.userId, req.query);
+      // We need to return the data with status code 200 registered in the code() method above, data is the return type of the schema registered in the code() method above
+        return sendSuccess(data);
       } catch (error) {
-        if (error instanceof CommentNotFoundError) {
-          return { status: 404, data: { error: error.message } };
-        }
-        throw error;
+        // RULE: Check if error is ResponseError, otherwise return 400 error with message
+        return error instanceof ResponseError ? error : response400("Failed to list contacts");
       }
     })
+    // We need to build the route, this is required for the route to be registered!
     .build();
 
-  // Delete comment
-  useRoute("comments/:id")
-    .delete("/")
-    .code(204)                 // Success: Comment deleted
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(404, ErrorSchema)    // Error: Comment not found
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Delete comment")
-    .tags(["Comments"])
-    .auth("bearer")
-    .guard(JWTGuard())
+  // ─────────────────────────────────────────────────────────────
+  // POST /contacts — Create a contact
+  // RULES:
+  // 1. Use Input schemas for request bodies
+  // 2. Success code is 200 (not 201)
+  // 3. Always validate user ownership
+  // ─────────────────────────────────────────────────────────────
+  useRoute()
+    .controller("contacts")
+    .put("/:id") // RULE: Use HTTP method and path with dynamic route (:id), we need to define the params for the dynamic route see below
+    .version("1")
+    .codes(buildExtraResponseCodes(InputUploadSchema)) // Use the predefined response codes
+    // We need to define the params for the dynamic route (:id), we can use req.params for them
     .params(Type.Object({ id: Type.String() }))
-    .handler(async (req) => {
-      try {
-        const comment = await service.getCommentById(req.params.id);
-        if (comment.authorId !== req.user.id) {
-          return { status: 403, data: { error: "Forbidden" } };
+    .summary("Create contact")
+    .tags(["Contacts"])
+    // We can use auth method and guard, we can use async function for custom validation
+    .auth('bearer', async (req, reply) => {
+        const isValid = await isBearerValid(req);
+        if (!isValid) {
+          // Error without payload (details in the error schema)
+            return responseForbidden('Invalid access token');
         }
-
-        await service.deleteComment(req.params.id);
-        return { status: 204 };
-      } catch (error) {
-        if (error instanceof CommentNotFoundError) {
-          return { status: 404, data: { error: error.message } };
-        }
-        throw error;
-      }
+        return true;
     })
-    .build();
-
-  /* Работа с файлами ────────────────────────────────────────── */
-
-  // Upload file to article
-  useRoute("articles/:id/attachments")
-    .post("/")
-    .code(200, ArticleSchema)  // Success: File attached
-    .code(400, ErrorSchema)    // Error: Invalid file
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(404, ErrorSchema)    // Error: Article not found
-    .code(413, ErrorSchema)    // Error: File too large
-    .code(415, ErrorSchema)    // Error: Unsupported file type
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Attach file to article")
-    .tags(["Articles", "Files"])
-    .auth("bearer")
-    .guard(JWTGuard())
-    .acceptMultipart()
-    .params(Type.Object({ id: Type.String() }))
-    .body(Type.Object({ file: Type.String({ format: "binary" }) }))
+    // Use query parameters for optional fields
+    .query(Type.Object({
+      isPrivate: Type.Boolean()
+    }))
+    // Required for file fields
+    .acceptMultipart() // RULE: Use acceptMultipart() for file fields
+    .body(InputUploadSchema) // RULE: Use Input schema for request body
+    // RULE: Use fileOptions for file fields validation
     .fileOptions(
       {
         maxFileSize: 10 * 1024 * 1024, // 10MB
         accept: ["image/*", "application/pdf"]
       },
-      "file"
+      "file" // Not required, we can use it for set validation rules for the specific file field
     )
     .handler(async (req) => {
       try {
-        const article = await service.getArticleById(req.params.id);
-        if (article.authorId !== req.user.id) {
-          return { status: 403, data: { error: "Forbidden" } };
-        }
-
-        const file = req.files!.file[0];
-        const fileName = `${Date.now()}-${file.filename}`;
-        const filePath = `/uploads/${fileName}`;
-
-        const updated = await service.attachFile(req.params.id, filePath);
-        return { status: 200, data: updated };
+        const params = req.params; // RULE: Use req.params for dynamic route params
+        const body = req.body; // RULE: Use req.body for request body
+        const { isPrivate } = req.query; // RULE: Use req.query for query parameters
+        // RULE: Use useSession for type-safe session access
+        const session = useSession<{ userId: string }>(req);
+        // RULE: Use req.tempFiles for file fields, this a temp file from the client, we need to save it to the storage and get the url
+        const file = req.tempFiles[0];
+        // use import { useS3Provider } from "@tsdiapi/s3";
+        const s3provider = useS3Provider();
+        // Manual upload
+        const upload = await s3provider.uploadToS3({
+            buffer: file.buffer,
+            mimetype: file.mimetype,
+            originalname: file.filename
+        }, isPrivate);
+        return sendSuccess(upload);
       } catch (error) {
-        if (error instanceof ArticleNotFoundError) {
-          return { status: 404, data: { error: error.message } };
+        // RULE: Check if error is ResponseError, otherwise return 400 error with message
+        return error instanceof ResponseError ? error : response400("Failed to upload file");
+      }
+    })
+    .build();
+
+  // ─────────────────────────────────────────────────────────────
+  // DELETE /contacts/:id — Delete a contact
+  // RULES:
+  // 1. Use resolve() for existence check
+  // 2. Return 204 for successful deletion
+  // 3. Always check ownership before deletion
+  // ─────────────────────────────────────────────────────────────
+
+  useRoute()
+    .controller("contacts")
+    .delete(":id")
+    .version("1")
+    .code(204, Type.Null())
+    .code(400, ResponseErrorSchema)
+    .code(403, ResponseErrorSchema)
+    .summary("Delete contact")
+    .tags(["Contacts"])
+    .auth("bearer")
+    // use custom guard for custom validation
+    .guard(
+      async (req, reply) => {
+        const isValid = await isBearerValid(req);
+        if (!isValid) {
+          return responseForbidden('Invalid access token');
         }
-        throw error;
+        return true;
       }
-    })
-    .build();
-
-  /* Экспорт данных ──────────────────────────────────────────── */
-
-  // Export articles to CSV
-  useRoute("articles/export/csv")
-    .get("/")
-    .code(200)                 // Success: CSV file
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Export articles to CSV")
-    .tags(["Articles", "Export"])
-    .auth("bearer")
-    .guard(JWTGuard({ guardName: "adminOnly" }))
-    .binary()
-    .responseHeader(
-      "Content-Disposition",
-      'attachment; filename="articles-export.csv"',
-      200
     )
-    .handler(async () => service.exportArticlesToCsv())
-    .build();
-
-  /* Кастомные guard'ы и примеры ─────────────────────────────── */
-
-  // Example of custom guard (admin role check)
-  useRoute("articles/admin-only")
-    .get("/")
-    .code(200, Type.Object({ secret: Type.String() }))  // Success: Admin data
-    .code(401, ErrorSchema)    // Error: Unauthorized
-    .code(403, Type.Object({ error: Type.String() }))    // Error: Forbidden
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Admin only (custom guard)")
-    .tags(["Articles", "Admin"])
-    .auth("bearer")
-    .guard(async function (req, reply) {
-      if (!req.headers.authorization) {
-        return { status: 401, data: { error: "Unauthorized" } };
+    .params(Type.Object({ id: Type.String() }))
+    // We can use resolve() for existence check and return error object instead of throwing
+    // Resolver can be used for custom validation like a guard and return error object instead of throwing or return data to the handler in req.routeData
+    .resolve(async (req) => {
+      const contact = await contactService.getContactById(req.params.id);
+      if (!contact) {
+        return response400("Contact not found");
       }
-      if (req.headers["x-admin-role"] !== "superadmin") {
-        return { status: 403, data: { error: "Forbidden" } };
-      }
-      return true;
+      return contact;
     })
-    .handler(() => ({
-      status: 200,
-      data: { secret: "42" }
-    }))
+    .handler(async (req) => {
+      try {
+        const session = useSession<{ userId: string }>(req);
+        const contact = req.routeData;
+
+        // RULE: Always check ownership
+        if (contact.userId !== session.userId) {
+          return response403("Forbidden");
+        }
+
+        await contactService.deleteContact(req.params.id);
+        return responseNull();
+      } catch (error) {
+        // RULE: Check if error is ResponseError, otherwise return 400 error with message
+        return error instanceof ResponseError ? error : response400("Failed to delete contact");
+      }
+    })
     .build();
 
-  // Example of text response
-  useRoute("articles/ping")
-    .get("/")
-    .code(200)                 // Success: Text response
-    .code(500, ErrorSchema)    // Error: Server error
-    .summary("Service health check")
-    .tags(["Articles"])
-    .text()
-    .responseHeader("X-Service-Ping", "ok", 200)
-    .handler(() => "pong")
+// ─────────────────────────────────────────────────────────────
+// API DEVELOPMENT RULES AND BEST PRACTICES
+// ─────────────────────────────────────────────────────────────
+
+/* 1. DATE HANDLING
+Always use DateString from @tsdiapi/server for date fields:
+Correct: createdAt: DateString()
+Incorrect: createdAt: Type.String({ format: "date-time" })
+*/
+
+/* 2. FILE HANDLING
+Always use Type.String({ format: "binary" }) for file fields:
+Correct: file: Type.String({ format: "binary" })
+Incorrect: file: Type.String()
+- Use .acceptMultipart() for file uploads
+- Define fileOptions with size limits and accepted types
+- Access files via req.tempFiles
+*/
+
+/* 3. RESPONSE CODES
+Every route MUST register ALL possible response codes. There are several ways to define response codes:
+
+A. Using individual code() calls:
+.code(200, OutputSchema) // Success response
+.code(400, ErrorSchema)  // Bad request
+.code(401, ErrorSchema)  // Unauthorized
+.code(403, ErrorSchema)  // Forbidden
+.code(404, ErrorSchema)  // Not found
+.code(500, ErrorSchema)  // Internal server error
+
+B. Using codes() with predefined codes object:
+const { codes } = useResponseSchemas(OutputSchema, ErrorSchema);
+.codes(codes) // Will include all standard codes
+
+or use manual codes
+.codes({200: OutputSchema, 400: ErrorSchema, 403: ErrorSchema, 404: ErrorSchema, 500: ErrorSchema}) 
+
+C. Using response builders:
+.code(200, Type.Null()) // For 204 No Content
+.code(400, ResponseBadRequest)
+.code(403, ResponseForbidden)
+.code(404, ResponseNotFound)
+.code(500, ResponseInternalServerError)
+
+Rules for response codes:
+- Success codes use 200 for all operations (including POST)
+- Error codes (400, 401, 403, 404, 500) must be documented
+- Each code MUST have a corresponding schema
+- All possible error scenarios MUST be documented
+- For authenticated routes, 403 response code is REQUIRED
+- Use appropriate response builders for common error cases
+*/
+
+/* 4. SESSION HANDLING
+Session object contains all data from JWT token:
+const token = await authProvider.signIn({
+  userId: "123",
+  role: "admin",
+  permissions: ["read", "write"]
+});
+Access in route handler:
+const { userId, role, permissions } = req.session;
+For type-safe access, use useSession:
+const session = useSession<UserSession>(req);
+*/
+
+/* 5. ERROR HANDLING
+There are several approaches to error handling in TSDIAPI:
+
+1. Using Response Schemas (Recommended):
+const { codes, sendSuccess, sendError } = useResponseSchemas(
+    SuccessSchema,
+    ErrorSchema
+);
+
+useRoute("contacts")
+    .post("/")
+    .version('1')
+    .codes(codes) // Registers only 200, 400, 401, 403
+    .handler(async (req) => {
+        try {
+            const contact = await contactService.create(req.body);
+            return sendSuccess(contact);
+        } catch (error) {
+            return error instanceof ResponseError ? error : response400("Failed to create contact");
+        }
+    })
     .build();
+
+2. Using buildExtraResponseCodes (Recommended):
+useRoute("contacts")
+    .post("/")
+    .version('1')
+    .codes(buildExtraResponseCodes(ContactSchema, ErrorSchema)) // Registers only 200, 400, 401, 403
+    .handler(async (req) => {
+        try {
+            const contact = await contactService.create(req.body);
+            return response200(contact);
+        } catch (error) {
+            return error instanceof ResponseError ? error : response400("Failed to create contact");
+        }
+    })
+    .build();
+
+3. Service Layer Error Handling:
+@Service()
+class ContactService {
+    async findById(id: string) {
+        const contact = await this.prisma.contact.findUnique({ where: { id } });
+        if (!contact) {
+            throw new ResponseBadRequest(`Contact with ID ${id} not found`);
+        }
+        return contact;
+    }
 }
+
+4. Include Error Details:
+const ValidationErrorDetails = Type.Object({
+    field: Type.String(),
+    message: Type.String()
+});
+
+const ErrorDetailsSchema = Type.Object({
+    errors: Type.Array(ValidationErrorDetails)
+});
+
+const { register: errorRegister, send: sendError } = useResponseErrorSchema(400, ErrorDetailsSchema);
+useRoute("contacts")
+    .post("/")
+    .code(...errorRegister)
+    .handler(async (req) => {
+        try {
+            const contact = await contactService.create(req.body);
+            return response200(contact);
+        } catch (error) {
+            if (error instanceof ResponseError) {
+                return error;
+            }
+            return sendError(`Invalid input`, {
+                errors: [{
+                    field: "email",
+                    message: "Invalid email format"
+                }]
+            });
+        }
+    });
+
+5. Handle Specific Error Types:
+try {
+    const session = useSession<UserSession>(req);
+    const contact = await service.setMainContact(session?.id, req.params.id);
+    return { status: 200, data: contact };
+} catch (error) {
+    if (error instanceof ContactNotFoundError) {
+        return { status: 404, data: { error: error.message } };
+    }
+    if (error instanceof MainContactNotFoundError) {
+        return { status: 404, data: { error: error.message } };
+    }
+    if (error instanceof DatabaseError) {
+        return { status: 500, data: { error: error.message } };
+    }
+    if (error instanceof ValidationError) {
+        return { status: 400, data: { error: error.message } };
+    }
+    if (error instanceof UnauthorizedError) {
+        return { status: 401, data: { error: error.message } };
+    }
+    if (error instanceof ForbiddenError) {
+        return { status: 403, data: { error: error.message } };
+    }
+    return error instanceof ResponseError ? error : response400("Operation failed");
+}
+
+6. Handle Async Errors:
+try {
+    await someAsyncOperation();
+} catch (error) {
+    return error instanceof ResponseError ? error : response400("Operation failed");
+}
+*/
+
+/* 6. SERVICE LAYER BEST PRACTICES
+- Always wrap database operations in try-catch blocks
+- Throw appropriate custom errors
+- Handle relationships carefully
+- Use TypeDI for dependency injection
+- Keep business logic in service layer
+- Always validate user ownership before operations
+*/
+
+/* 7. CONTROLLER NAMING AND VERSIONING
+- use .controller(<controllerName>) for controller name
+- Always specify version for each route
+- Use semantic versioning (e.g., "1", "2")
+- When making breaking changes, increment major version
+- Support multiple versions simultaneously
+- Each route must be defined separately with single HTTP method
+*/
+
+/* 8. FEATURE STRUCTURE
+A feature must contain at least:
+- name.service.ts (business logic)
+- name.module.ts (route definitions)
+*/
+
+/* 9. TYPEBOX SCHEMA GENERATION
+- Use Output schemas for responses
+- Use Input schemas for request bodies
+- Import from @base/api/typebox-schemas/models
+*/
+
 ```

@@ -242,75 +242,188 @@ useRoute()
 
 ## Error Handling
 
-TSDIAPI provides multiple levels of error handling:
+TSDIAPI provides multiple approaches for error handling:
 
-### 1. Global Error Handler
+### 1. Standard Error Handling
+
+The basic approach using standard HTTP status codes:
+
 ```typescript
-app.setErrorHandler((error, request, reply) => {
-    // Custom error handling
-    reply.status(500).send({
-        error: error.message,
-        code: "INTERNAL_ERROR"
+useRoute("contacts")
+    .get("/")
+    .version('1')
+    .code(200, Type.Object({ data: Type.Array(ContactSchema) }))
+    .code(400, Type.Object({ error: Type.String() }))
+    .code(404, Type.Object({ error: Type.String() }))
+    .handler(async (req) => {
+        // Implementation
     });
-});
 ```
 
-### 2. Route-Level Error Handling
+### 2. Response Codes Builder
+
+A more convenient way to register multiple response codes at once:
+
 ```typescript
-useRoute("feature")
-    .get("/example")
-    .code(200, Type.Object({ data: Type.Any() }))
-    .code(400, Type.Object({ error: Type.String() }))
-    .code(500, Type.Object({ error: Type.String(), code: Type.String() }))
+import { buildResponseCodes } from "@tsdiapi/server";
+
+useRoute("contacts")
+    .get("/")
+    .version('1')
+    .codes(buildResponseCodes(Type.Array(ContactSchema)))
+    .handler(async (req) => {
+        // Implementation
+    });
+```
+
+This automatically registers standard response codes (200, 400, 401, 403, 404, 409, 422, 429, 500, 503) with the provided schema.
+
+### 3. Typed Error Responses
+
+For more type-safe error handling, you can use the provided error response classes:
+
+```typescript
+import { 
+    ResponseBadRequest,
+    ResponseNotFound,
+    ResponseUnauthorized,
+    // ... other error types
+} from "@tsdiapi/server";
+
+const handler = async (req: FastifyRequest) => {
+    try {
+        // Your implementation
+    } catch (error) {
+        throw new ResponseBadRequest("Invalid contact data");
+    }
+}
+
+useRoute("contacts")
+    .post("/")
+    .version('1')
+    .codes(buildResponseCodes(ContactSchema))
+    .handler(handler);
+```
+
+### 4. Custom Error Schemas
+
+You can define custom error schemas for more detailed error responses:
+
+```typescript
+import { useResponseErrorSchema } from "@tsdiapi/server";
+
+const ValidationErrorSchema = Type.Object({
+    field: Type.String(),
+    message: Type.String()
+});
+
+const { register: errorRegister, send: sendError } = useResponseErrorSchema(400, ValidationErrorSchema);
+const { register: successRegister, send: sendSuccess } = useResponseSchema(200, ContactSchema);
+useRoute("contacts")
+    .post("/")
+    .version('1')
+    .code(...successRegister)
+    .code(...errorRegister)
     .handler(async (req) => {
         try {
-            // Your code here
-            return { status: 200, data: { /* ... */ } };
+            sendSuccess(req.body);
         } catch (error) {
-            return {
-                status: 500,
-                data: { 
-                    error: error.message,
-                    code: "INTERNAL_ERROR"
-                }
-            };
+            throw sendError("Validation failed", { 
+                field: "email", 
+                message: "Invalid email format" 
+            });
         }
-    })
-    .build();
+    });
 ```
 
-### 3. Error Hooks
+### 5. Combined Response Schemas
+
+For a more integrated approach, you can use `useResponseSchemas` to handle both success and error responses:
+
 ```typescript
-useRoute("feature")
-    .get("/error-hook")
-    .onError((error, req, reply) => {
-        // Handle specific route errors
-        console.error(`Error in route: ${error.message}`);
-    })
-    .preValidation((req, reply) => {
-        if (!req.headers.authorization) {
-            return {
-                status: 401,
-                data: { error: "Unauthorized" }
-            };
+import { useResponseSchemas } from "@tsdiapi/server";
+
+const ContactSchema = Type.Object({
+    id: Type.String(),
+    name: Type.String(),
+    email: Type.String()
+});
+
+const ValidationErrorSchema = Type.Object({
+    field: Type.String(),
+    message: Type.String()
+});
+
+const { codes, sendError, sendSuccess, send } = useResponseSchemas(
+    ContactSchema,
+    ValidationErrorSchema
+);
+
+useRoute("contacts")
+    .post("/")
+    .version('1')
+    .codes(codes)
+    .handler(async (req) => {
+        try {
+            // Success case
+            const contact = await createContact(req.body);
+            return sendSuccess(contact);
+            
+            // Or using the combined send function
+            // return send(contact);
+        } catch (error) {
+            // Error case
+            return sendError("Validation failed", {
+                field: "email",
+                message: "Invalid email format"
+            });
+            
+            // Or using the combined send function
+            // return send({ error: "Validation failed", details: { field: "email", message: "Invalid email format" } });
         }
-        return true;
-    })
-    .build();
+    });
 ```
 
-### Common Error Types
-- **Validation Errors** (400): Input validation failures
-- **Authentication Errors** (401/403): Authentication/authorization issues
-- **File Upload Errors** (400): File upload validation failures
-- **Database Errors** (500): Database operation failures
+The `useResponseSchemas` function provides:
+- `codes`: Pre-configured response codes for both success and error cases
+- `sendError`: Function to send error responses
+- `sendSuccess`: Function to send success responses
+- `send`: Combined function that can handle both success and error responses
+
+### 6. Response Helpers
+
+For quick response creation, use the provided helper functions:
+
+```typescript
+import { 
+    response200,
+    response400,
+    // ... other helpers
+} from "@tsdiapi/server";
+
+useRoute("contacts")
+    .get("/:id")
+    .version('1')
+    .codes(buildResponseCodes(ContactSchema))
+    .handler(async (req) => {
+        const contact = await findContact(req.params.id);
+        if (!contact) {
+            return response400("Contact not found");
+        }
+        return response200(contact);
+    });
+```
 
 ### Best Practices
-1. Use appropriate HTTP status codes
-2. Include detailed error information
-3. Implement proper error logging
-4. Use TypeBox schemas for error response validation
+
+1. Use appropriate HTTP status codes for different error types
+2. Include detailed error information in responses
+3. Use TypeBox schemas for error response validation
+4. Implement proper error logging
 5. Handle both synchronous and asynchronous errors
+6. Use typed error responses for better type safety
+7. Consider using the response codes builder for standard endpoints
+8. Use custom error schemas when you need detailed error information
 
 ## Best Practices
 

@@ -71,6 +71,7 @@ const sidebars: SidebarsConfig = {
       label: 'Examples',
       items: [
         'examples/code',
+        'examples/extended',
         'examples/prisma'
       ]
     }

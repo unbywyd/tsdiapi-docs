@@ -80,21 +80,26 @@ createApp<ConfigType>({
 ```typescript
 useRoute()
   .post("/upload")
+  .body(Type.Object({
+    file: Type.String({ format: "binary" })
+  }))
   .acceptMultipart()
   .handler(async (req) => {
     const file = req.tempFiles[0];
-    
+    // use import { useS3Provider } from "@tsdiapi/s3";
+    const s3provider = useS3Provider();
     // Manual upload
-    const s3Url = await uploadToS3(file.buffer, {
-      bucket: 'my-bucket',
-      key: `${file.id}-${file.filename}`
-    });
+    const upload = await s3provider.uploadToS3({
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+        originalname: file.filename
+    }, isPrivate);
     
     return { 
       status: 200, 
       data: { 
-        url: s3Url,
-        filename: file.filename
+        url: upload.url,
+        filename: upload.key,
       } 
     };
   })
