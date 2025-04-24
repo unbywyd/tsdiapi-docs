@@ -303,6 +303,102 @@ Always handle specific error types in route handlers and include proper error co
 })
 ```
 
+## Controller Naming and API Versioning
+
+### Controller Naming
+Always use the controller name in `useRoute()` that matches your feature name. The path in `.get()`, `.post()`, etc. should be relative to this controller name. Each route must be defined separately:
+
+```typescript
+// Correct - separate route definitions
+useRoute("contacts")
+  .get("/")
+  .version("1")
+  .code(200, Type.Array(ContactSchema))
+  .build();
+
+useRoute("contacts")
+  .get("/:id")
+  .version("1")
+  .code(200, ContactSchema)
+  .code(404, ErrorSchema)
+  .build();
+
+useRoute("contacts")
+  .post("/")
+  .version("1")
+  .code(201, ContactSchema)
+  .code(400, ErrorSchema)
+  .build();
+
+// Incorrect - multiple methods on same route
+useRoute("contacts")
+  .get("/")          // Wrong: multiple methods
+  .get("/:id")       // Wrong: multiple methods
+  .post("/")         // Wrong: multiple methods
+  .put("/:id")       // Wrong: multiple methods
+  .delete("/:id")    // Wrong: multiple methods
+```
+
+### API Versioning
+Always specify API version for each route using `.version()`. This helps maintain backward compatibility. Each route must be defined separately:
+
+```typescript
+// List contacts
+useRoute("contacts")
+  .get("/")
+  .version("1")
+  .code(200, Type.Array(ContactSchema))
+  .code(400, ErrorSchema)
+  .summary("Get contacts list")
+  .tags(["Contacts"])
+  .auth("bearer")
+  .guard(JWTGuard())
+  .handler(async (req) => {
+    // ... handler implementation
+  })
+  .build();
+
+// Get contact by ID
+useRoute("contacts")
+  .get("/:id")
+  .version("1")
+  .code(200, ContactSchema)
+  .code(404, ErrorSchema)
+  .summary("Get contact by ID")
+  .tags(["Contacts"])
+  .auth("bearer")
+  .guard(JWTGuard())
+  .params(Type.Object({ id: Type.String() }))
+  .handler(async (req) => {
+    // ... handler implementation
+  })
+  .build();
+
+// Create contact
+useRoute("contacts")
+  .post("/")
+  .version("1")
+  .code(201, ContactSchema)
+  .code(400, ErrorSchema)
+  .summary("Create contact")
+  .tags(["Contacts"])
+  .auth("bearer")
+  .guard(JWTGuard())
+  .body(ContactSchema)
+  .handler(async (req) => {
+    // ... handler implementation
+  })
+  .build();
+```
+
+### Versioning Best Practices
+1. Always specify version for each route
+2. Use semantic versioning (e.g., "1", "2", etc.)
+3. When making breaking changes, increment the major version
+4. Document version changes in API changelog
+5. Support multiple versions simultaneously for backward compatibility
+6. Each route must be defined separately with a single HTTP method
+
 ## Feature Structure
 A feature is any directory in `src/api` that contains at least two required files:
 - `name.service.ts` - Contains business logic

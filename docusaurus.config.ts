@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'TSDIAPI Documentation',
   tagline: 'TypeScript API Framework',
-  favicon: 'img/logo.png',
+  favicon: 'favicon.ico',
 
   // Set the production url of your site here
   url: 'https://tsdiapi.com',
