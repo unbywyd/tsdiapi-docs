@@ -318,4 +318,4 @@ useRoute("feature")
 
 ## License
 
-This plugin is open-source and available under the [MIT License](LICENSE). 
+This plugin is open-source and available under the [MIT License](https://opensource.org/licenses/MIT). 
