@@ -626,7 +626,6 @@ import { InputContactSchema } from "@base/api/typebox-schemas/models/InputContac
 // Use Input schemas for request bodies
 .body(InputContactSchema)        // For request data
 ```
-
 ### 1. First, let's create a service (`articles.service.ts`):
 
 ```typescript
@@ -995,3 +994,4 @@ export default function ArticlesModule({ useRoute }: AppContext): void {
   // ... rest of the module code ...
 }
 ```
+
