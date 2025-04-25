@@ -121,5 +121,5 @@ If environment variables aren't loading:
 ## 📚 Additional Resources
 
 - [Plugin Installation Guide](./installation.md)
-- [Plugin Development Guide](./development.md)
+- [Plugin Development Guide](../development/development.md)
 - [Official Plugin Documentation](https://tsdiapi.dev/plugins)

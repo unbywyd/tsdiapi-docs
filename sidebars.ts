@@ -54,8 +54,15 @@ const sidebars: SidebarsConfig = {
       items: [
         'plugins/overview',
         'plugins/installation',
-        'plugins/configuration',
-        'plugins/development'
+        'plugins/configuration'
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Development',
+      items: [
+        'development/development',
+        'development/plugin-configuration'
       ]
     },
     {

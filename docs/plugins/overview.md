@@ -180,6 +180,6 @@ interface AppContext {
 
 ## 🔗 Additional Resources
 
-- [Plugin Development Guide](./development.md)
+- [Plugin Development Guide](../development/development.md)
 - [Service Injection Guide](../core/services.md)
 - [Route Building Guide](../core/routing.md)

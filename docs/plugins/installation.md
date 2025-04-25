@@ -99,5 +99,5 @@ if (session) {
 ## 🔗 Additional Resources
 
 - [Plugin Overview](../plugins/overview.md)
-- [Plugin Development Guide](../plugins/development.md)
+- [Plugin Development Guide](../development/development.md)
 - [Official Plugin Documentation](https://tsdiapi.dev/plugins)
