@@ -42,7 +42,8 @@ import { OutputAdminSchema } from "@base/api/typebox-schemas/models/index.js";
 export default async function registerMetaRoutes({ useRoute, fastify }: AppContext) {
   const prisma = usePrisma<PrismaClient>();
 
-  useRoute()
+  useRoute("users")
+      .version("v1")
       .get("/users/:id")
       .params(Type.Object({ id: Type.String() }))
       .code(200, OutputAdminSchema)
