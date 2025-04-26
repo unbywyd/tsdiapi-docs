@@ -29,24 +29,52 @@ tsdiapi generate jwt-auth auth
 npm run dev
 `;
 
-const typeScriptCode = `export default function userController({ useRoute }: AppContext) {
+const typeScriptCode = `
+// src/api/features/user/user.module.ts
+export default function userController({ useRoute }: AppContext) {
+import { AppContext, ResponseErrorSchema, ResponseForbidden } from "@tsdiapi/server";
+import { Type } from "@sinclair/typebox";
+import { usePrisma } from "@tsdiapi/prisma";
+import { PrismaClient } from "@generated/prisma/index.js";
+import { JWTGuard, useSession } from "@tsdiapi/jwt-auth";
+
+export default async function registerMetaRoutes({ useRoute, fastify }: AppContext) {
+  const prisma = usePrisma<PrismaClient>();
+
+  const SuccessResponse = Type.Object({
+      id: Type.String(),
+      name: Type.String()
+  });
   useRoute()
-    .get("/users/:id")
-    .params(Type.Object({ id: Type.String() }))
-    .code(200, Type.Object({ 
-      id: Type.String(), 
-      name: Type.String() 
-    }))
-    .handler(async (req) => {
-      return {
-        status: 200,
-        data: { 
-          id: req.params.id, 
-          name: "John Doe" 
-        }
-      };
-    })
-    .build();
+      .get("/users/:id")
+      .params(Type.Object({ id: Type.String() }))
+      .code(200, SuccessResponse)
+      .code(403, ResponseErrorSchema)
+      .auth('bearer')
+      .guard(JWTGuard())
+      .resolve(async (req) => {
+          const session = useSession<{ id: string }>(req);
+          const user = await prisma.user.findUnique({
+              where: {
+                  id: session.id
+              }
+          });
+          if (user.isDeleted) {
+              throw new ResponseForbidden("User is deleted");
+          }
+          return user;
+      })
+      .handler(async (req) => {
+          // Get resolved data
+          const user = req.routeData;
+
+          return {
+              status: 200,
+              data: user
+          };
+      })
+      .build();
+  }
 }`;
 
 function HomepageHeader() {
