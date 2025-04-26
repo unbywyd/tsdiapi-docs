@@ -10,9 +10,24 @@ import NpmIcon from '@site/static/img/npm.svg';
 
 import styles from './index.module.css';
 
-const quickStartCode = `npx @tsdiapi/cli create myapi
+const quickStartCode = `
+npm i -g @tsdiapi/cli
+tsdiapi create myapi
 cd myapi
-npm start`;
+npm run dev
+`;
+
+const prismaAddStartCode = `tsdiapi add prisma
+npx prisma migrate dev
+npm run prisma:generate
+`;
+
+const addPluginStartCode = `tsdiapi plugins add jwt-auth`;
+const generatePluginCode = `
+cd src/api
+tsdiapi generate jwt-auth auth
+npm run dev
+`;
 
 const typeScriptCode = `export default function userController({ useRoute }: AppContext) {
   useRoute()
@@ -83,6 +98,18 @@ export default function Home(): ReactNode {
                 <p>Create a new TSDIAPI project in seconds:</p>
                 <CodeBlock language="bash" showLineNumbers>
                   {quickStartCode}
+                </CodeBlock>
+                <p>Add Prisma to your project:</p>
+                <CodeBlock language="bash" showLineNumbers>
+                  {prismaAddStartCode}
+                </CodeBlock>
+                <p>Add Plugin to your project:</p>
+                <CodeBlock language="bash" showLineNumbers>
+                  {addPluginStartCode}
+                </CodeBlock>
+                <p>Using the plugin generator:</p>
+                <CodeBlock language="bash" showLineNumbers>
+                  {generatePluginCode}
                 </CodeBlock>
               </div>
               <div className="col col--8">
