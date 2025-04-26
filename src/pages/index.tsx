@@ -31,24 +31,21 @@ npm run dev
 
 const typeScriptCode = `
 // src/api/features/user/user.module.ts
-export default function userController({ useRoute }: AppContext) {
-import { AppContext, ResponseErrorSchema, ResponseForbidden } from "@tsdiapi/server";
+import { AppContext, ResponseErrorSchema, ResponseForbidden, responseSuccess } from "@tsdiapi/server";
 import { Type } from "@sinclair/typebox";
 import { usePrisma } from "@tsdiapi/prisma";
 import { PrismaClient } from "@generated/prisma/index.js";
 import { JWTGuard, useSession } from "@tsdiapi/jwt-auth";
+// Auto generated schemas
+import { OutputAdminSchema } from "@base/api/typebox-schemas/models/index.js";
 
 export default async function registerMetaRoutes({ useRoute, fastify }: AppContext) {
   const prisma = usePrisma<PrismaClient>();
 
-  const SuccessResponse = Type.Object({
-      id: Type.String(),
-      name: Type.String()
-  });
   useRoute()
       .get("/users/:id")
       .params(Type.Object({ id: Type.String() }))
-      .code(200, SuccessResponse)
+      .code(200, OutputAdminSchema)
       .code(403, ResponseErrorSchema)
       .auth('bearer')
       .guard(JWTGuard())
@@ -67,14 +64,11 @@ export default async function registerMetaRoutes({ useRoute, fastify }: AppConte
       .handler(async (req) => {
           // Get resolved data
           const user = req.routeData;
-
-          return {
-              status: 200,
-              data: user
-          };
+          return {status: 200, data: user}
+          // OR
+          return responseSuccess(user);
       })
       .build();
-  }
 }`;
 
 function HomepageHeader() {
