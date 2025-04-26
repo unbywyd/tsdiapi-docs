@@ -50,6 +50,10 @@
   padding: 1rem;
 }
 
+.space {
+  height: 1rem;
+}
+
 .codeBlock {
   background: var(--ifm-background-color);
   border-radius: 8px;

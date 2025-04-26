@@ -127,14 +127,17 @@ export default function Home(): ReactNode {
                 <CodeBlock language="bash" showLineNumbers>
                   {quickStartCode}
                 </CodeBlock>
+                <div className="space"></div>
                 <p>Add Prisma to your project:</p>
                 <CodeBlock language="bash" showLineNumbers>
                   {prismaAddStartCode}
                 </CodeBlock>
+                <div className="space"></div>
                 <p>Add Plugin to your project:</p>
                 <CodeBlock language="bash" showLineNumbers>
                   {addPluginStartCode}
                 </CodeBlock>
+                <div className="space"></div>
                 <p>Using the plugin generator:</p>
                 <CodeBlock language="bash" showLineNumbers>
                   {generatePluginCode}
