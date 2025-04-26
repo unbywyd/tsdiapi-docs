@@ -31,7 +31,7 @@ npm run dev
 
 const typeScriptCode = `
 // src/api/features/user/user.module.ts
-import { AppContext, ResponseErrorSchema, ResponseForbidden, responseSuccess } from "@tsdiapi/server";
+import { AppContext, ResponseErrorSchema, ResponseForbidden } from "@tsdiapi/server";
 import { Type } from "@sinclair/typebox";
 import { usePrisma } from "@tsdiapi/prisma";
 import { PrismaClient } from "@generated/prisma/index.js";
@@ -65,8 +65,6 @@ export default async function registerMetaRoutes({ useRoute, fastify }: AppConte
           // Get resolved data
           const user = req.routeData;
           return {status: 200, data: user}
-          // OR
-          return responseSuccess(user);
       })
       .build();
 }`;
