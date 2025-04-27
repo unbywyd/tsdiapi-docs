@@ -24,7 +24,6 @@ npm run prisma:generate
 
 const addPluginStartCode = `tsdiapi plugins add jwt-auth`;
 const generatePluginCode = `
-cd src/api
 tsdiapi generate jwt-auth auth
 npm run dev
 `;
