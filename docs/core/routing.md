@@ -38,15 +38,7 @@ export default function FeatureModule({ useRoute }: AppContext): void {
     .code(200, FeatureSchema)
     .code(400, ResponseErrorSchema)
     .handler(async (req) => {
-      try {
-        // Response with 200 status code
-        return responseSuccess({ message: "Hello, world!" });
-      } catch (error) {
-        // Response with 400 status code
-        return error instanceof ResponseError
-          ? error
-          : responseBadRequest("Failed to get text");
-      }
+      return responseSuccess({ message: "Hello, world!" });
     })
     .build();
 }
@@ -105,18 +97,9 @@ export default function FeatureModule({ useRoute }: AppContext): void {
     .version("1")
     .codes(codes)
     .handler(async (req) => {
-      try {
-        const service = Container.get(FeatureService);
-        const hello = await service.getHello();
-        return sendSuccess({ message: hello });
-      } catch (error) {
-        return error instanceof ResponseError
-          ? error
-          : sendError("Failed to get hello", {
-              field: "message",
-              message: "Failed to get hello",
-            });
-      }
+      const service = Container.get(FeatureService);
+      const hello = await service.getHello();
+      return sendSuccess({ message: hello });
     })
     .build();
 }
@@ -162,14 +145,8 @@ export default function UserModule({ useRoute }: AppContext): void {
     .version("1")
     .codes(codes)
     .handler(async (req) => {
-      try {
-        const users = await userService.findAll();
-        return sendSuccess(users);
-      } catch (error) {
-        return error instanceof ResponseError
-          ? error
-          : response400("Failed to get users");
-      }
+      const users = await userService.findAll();
+      return sendSuccess(users);
     })
     .build();
 }
@@ -190,14 +167,8 @@ useRoute("feature/:id")
     })
   )
   .handler(async (req) => {
-    try {
-      const feature = await featureService.findById(req.params.id);
-      return responseSuccess(feature);
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to get feature");
-    }
+    const feature = await featureService.findById(req.params.id);
+    return responseSuccess(feature);
   })
   .build();
 ```
@@ -227,14 +198,8 @@ useRoute("feature")
     })
   )
   .handler(async (req) => {
-    try {
-      const feature = await featureService.create(req.body);
-      return responseSuccess(feature);
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to create feature");
-    }
+    const feature = await featureService.create(req.body);
+    return responseSuccess(feature);
   })
   .build();
 ```
@@ -255,14 +220,8 @@ useRoute("feature")
     return true;
   })
   .handler(async (req) => {
-    try {
-      const feature = await featureService.getFeature();
-      return responseSuccess(feature);
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to get feature");
-    }
+    const feature = await featureService.getFeature();
+    return responseSuccess(feature);
   })
   .build();
 ```
@@ -300,31 +259,25 @@ useRoute("feature")
     "document"
   )
   .handler(async (req) => {
-    try {
-      const s3provider = useS3Provider();
-      const uploads = await Promise.all([
-        s3provider.uploadToS3({
-          buffer: req.tempFiles[0].buffer,
-          mimetype: req.tempFiles[0].mimetype,
-          originalname: req.tempFiles[0].filename,
-        }),
-        s3provider.uploadToS3({
-          buffer: req.tempFiles[1].buffer,
-          mimetype: req.tempFiles[1].mimetype,
-          originalname: req.tempFiles[1].filename,
-        }),
-      ]);
-      return sendSuccess({
-        urls: {
-          avatar: uploads[0].url,
-          document: uploads[1].url,
-        },
-      });
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to upload files");
-    }
+    const s3provider = useS3Provider();
+    const uploads = await Promise.all([
+      s3provider.uploadToS3({
+        buffer: req.tempFiles[0].buffer,
+        mimetype: req.tempFiles[0].mimetype,
+        originalname: req.tempFiles[0].filename,
+      }),
+      s3provider.uploadToS3({
+        buffer: req.tempFiles[1].buffer,
+        mimetype: req.tempFiles[1].mimetype,
+        originalname: req.tempFiles[1].filename,
+      }),
+    ]);
+    return sendSuccess({
+      urls: {
+        avatar: uploads[0].url,
+        document: uploads[1].url,
+      },
+    });
   })
   .build();
 ```
@@ -341,14 +294,8 @@ useRoute("feature")
   .version("1")
   .codes(codes)
   .handler(async (req) => {
-    try {
-      const data = await featureService.getData();
-      return sendSuccess(data);
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to get data");
-    }
+    const data = await featureService.getData();
+    return sendSuccess(data);
   })
   .build();
 ```
@@ -361,14 +308,8 @@ useRoute("feature")
   .version("1")
   .binary()
   .handler(async (req) => {
-    try {
-      const fileBuffer = await getFileBuffer();
-      return fileBuffer;
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to download file");
-    }
+    const fileBuffer = await getFileBuffer();
+    return fileBuffer;
   })
   .build();
 ```
@@ -381,13 +322,7 @@ useRoute("feature")
   .version("1")
   .text()
   .handler(async (req) => {
-    try {
-      return "Hello, world!";
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to get text");
-    }
+    return "Hello, world!";
   })
   .build();
 ```
@@ -422,14 +357,8 @@ useRoute("users")
     })
   )
   .handler(async (req) => {
-    try {
-      const user = await userService.create(req.body);
-      return sendSuccess(user);
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to create user");
-    }
+    const user = await userService.create(req.body);
+    return sendSuccess(user);
   })
   .build();
 ```
@@ -449,15 +378,9 @@ useRoute("feature")
   .auth("bearer")
   .guard(JWTGuard())
   .handler(async (req) => {
-    try {
-      const session = useSession<{ userId: string }>(req);
-      const data = await featureService.getProtectedData(session.userId);
-      return sendSuccess(data);
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to get protected data");
-    }
+    const session = useSession<{ userId: string }>(req);
+    const data = await featureService.getProtectedData(session.userId);
+    return sendSuccess(data);
   })
   .build();
 ```
@@ -478,30 +401,19 @@ useRoute("feature")
     })
   )
   .resolve(async (req) => {
-    try {
-      const sessionId = req.params.id;
-      const session = await client.session.findUnique({
-        where: { id: sessionId },
-      });
-      if (!session) {
-        throw new ResponseBadRequest("Session not found");
-      }
-      return session;
-    } catch (error) {
-      if (error instanceof ResponseError) throw error;
-      throw new ResponseBadRequest("Failed to resolve session");
+    const sessionId = req.params.id;
+    const session = await client.session.findUnique({
+      where: { id: sessionId },
+    });
+    if (!session) {
+      throw new ResponseBadRequest("Session not found");
     }
+    return session;
   })
   .handler(async (req) => {
-    try {
-      const session = req.routeData;
-      const data = await featureService.getData(session);
-      return sendSuccess(data);
-    } catch (error) {
-      return error instanceof ResponseError
-        ? error
-        : response400("Failed to get data");
-    }
+    const session = req.routeData;
+    const data = await featureService.getData(session);
+    return sendSuccess(data);
   })
   .build();
 ```
@@ -640,17 +552,10 @@ export default function ContactsModule({ useRoute }: AppContext): void {
     // Then we define the route handler, we can use useSession for type-safe session access
     // We can use req.routeData for resolved data
     .handler(async (req) => {
-      try {
-         // RULE: Use useSession for type-safe session access
       const session = useSession<{ userId: string }>(req);
-      const contact = req.routeData; // RULE: Use req.routeData for resolved data
+      const contact = req.routeData;
       const data = await contactService.listContacts(session.userId, req.query);
-      // We need to return the data with status code 200 registered in the code() method above, data is the return type of the schema registered in the code() method above
-        return sendSuccess(data);
-      } catch (error) {
-        // RULE: Check if error is ResponseError, otherwise return 400 error with message
-        return error instanceof ResponseError ? error : response400("Failed to list contacts");
-      }
+      return sendSuccess(data);
     })
     // We need to build the route, this is required for the route to be registered!
     .build();
@@ -696,27 +601,18 @@ export default function ContactsModule({ useRoute }: AppContext): void {
       "file" // Not required, we can use it for set validation rules for the specific file field
     )
     .handler(async (req) => {
-      try {
-        const params = req.params; // RULE: Use req.params for dynamic route params
-        const body = req.body; // RULE: Use req.body for request body
-        const { isPrivate } = req.query; // RULE: Use req.query for query parameters
-        // RULE: Use useSession for type-safe session access
-        const session = useSession<{ userId: string }>(req);
-        // RULE: Use req.tempFiles for file fields, this a temp file from the client, we need to save it to the storage and get the url
-        const file = req.tempFiles[0];
-        // use import { useS3Provider } from "@tsdiapi/s3";
-        const s3provider = useS3Provider();
-        // Manual upload
-        const upload = await s3provider.uploadToS3({
-            buffer: file.buffer,
-            mimetype: file.mimetype,
-            originalname: file.filename
-        }, isPrivate);
-        return sendSuccess(upload);
-      } catch (error) {
-        // RULE: Check if error is ResponseError, otherwise return 400 error with message
-        return error instanceof ResponseError ? error : response400("Failed to upload file");
-      }
+      const params = req.params;
+      const body = req.body;
+      const { isPrivate } = req.query;
+      const session = useSession<{ userId: string }>(req);
+      const file = req.tempFiles[0];
+      const s3provider = useS3Provider();
+      const upload = await s3provider.uploadToS3({
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+        originalname: file.filename
+      }, isPrivate);
+      return sendSuccess(upload);
     })
     .build();
   
@@ -775,20 +671,16 @@ export default function ContactsModule({ useRoute }: AppContext): void {
       return contact;
     })
     .handler(async (req) => {
-      try {
-        const session = useSession<{ userId: string }>(req);
-        const contact = req.routeData;
+      const session = useSession<{ userId: string }>(req);
+      const contact = req.routeData;
 
-        // RULE: Always check ownership
-        if (contact.userId !== session.userId) {
-          throw new ResponseForbidden("Forbidden");
-        }
-
-        await contactService.deleteContact(req.params.id);
-        return responseNull();
-      } catch (error) {
-        return error instanceof ResponseError ? error : response400("Failed to delete contact");
+      // RULE: Always check ownership
+      if (contact.userId !== session.userId) {
+        throw new ResponseForbidden("Forbidden");
       }
+
+      await contactService.deleteContact(req.params.id);
+      return responseNull();
     })
     .build();
 ```
@@ -818,17 +710,13 @@ useRoute()
     .summary("List all cities")
     .tags(["Cities"])
     .handler(async (req) => {
-        try {
-            const { items, total } = await cityService.listCities(req.query);
-            return sendSuccess({
-                items: items,
-                total: total,
-                skip: req.query.skip,
-                take: req.query.take
-            });
-        } catch (error) {
-            return error instanceof ResponseError ? error : response400("Failed to list cities");
-        }
+        const { items, total } = await cityService.listCities(req.query);
+        return sendSuccess({
+            items: items,
+            total: total,
+            skip: req.query.skip,
+            take: req.query.take
+        });
     })
     .build();
 ```
